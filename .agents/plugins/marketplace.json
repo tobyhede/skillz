@@ -1,0 +1,20 @@
+{
+  "name": "tobyhede",
+  "interface": {
+    "displayName": "Toby Hede"
+  },
+  "plugins": [
+    {
+      "name": "skillz",
+      "source": {
+        "source": "local",
+        "path": "./plugins/skillz"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

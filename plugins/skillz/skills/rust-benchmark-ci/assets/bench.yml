@@ -1,0 +1,267 @@
+# Benchmark gate template. Replace every <placeholder>. Action SHAs are the pins a working
+# project used (Oct 2026); re-pin to current releases and keep the version comments.
+# Delete the allocation-series steps if the project has no counting-allocator tests.
+# Rationale for each decision: references/ci-gate.md in the rust-benchmark-ci skill.
+name: Benchmark
+
+on:
+  push:
+    branches: [main]
+    # Everything that can move a measurement: benchmarked crates, the profile and resolved
+    # dependency versions, the toolchain, the command, and the gate's own definition including
+    # floors and checker. Filtering push keeps one stored point per relevant change.
+    # Repeated below because Actions does not support YAML anchors.
+    paths:
+      - '<crate-a>/**'
+      - '<crate-b>/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'mise.toml'
+      - '.github/workflows/bench.yml'
+      - 'benches/floors.toml'
+      - 'scripts/check-bench-floors.ts'
+      - 'scripts/check-bench-output.sh'
+      - 'scripts/tests/check-bench-floors.test.ts'
+      - '.cargo/config.toml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '<crate-a>/**'
+      - '<crate-b>/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - 'mise.toml'
+      - '.github/workflows/bench.yml'
+      - 'benches/floors.toml'
+      - 'scripts/check-bench-floors.ts'
+      - 'scripts/check-bench-output.sh'
+      - 'scripts/tests/check-bench-floors.test.ts'
+      - '.cargo/config.toml'
+  # No workflow_dispatch: github-action-benchmark fails on it with
+  # "No commit information is found in payload". Add it back only with a verified fix.
+  # Add `merge_group:` if this ever becomes a required check behind a merge queue.
+
+# Prerequisite: an orphan `gh-pages` branch must exist before the first run
+#   git switch --orphan gh-pages && git commit --allow-empty -m 'Benchmark data' && git push origin gh-pages
+# The memory-series fetch below hard-fails without it.
+#
+# Granted per job. The publishing job writes repository contents; the pull-request job never
+# receives the permission at all, so a pull request cannot move the baseline it is judged against.
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      deployments: write
+    concurrency:
+      group: bench-publish-${{ github.ref }}
+      # A run cancelled partway through publishing leaves the stored series half written.
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Pin the SHA of the toolchain-named branch (e.g. 1.98.0): that branch bakes the toolchain in
+      # as the input default. A SHA taken from `master` needs `with: { toolchain: ... }`.
+      - uses: dtolnay/rust-toolchain@f8be11a05b1d4f3fcebe6410cc16743212b999b0 # <toolchain>
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: bench
+          # PR-ref caches share the 10 GB quota but only that PR can read them.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # - name: Install native dependencies
+      #   run: sudo apt-get update && sudo apt-get install --yes <lib-dev>
+      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          install: false   # install only the tools this job runs
+          cache_save: ${{ github.ref == 'refs/heads/main' }}
+      # Identical in both jobs: first-run contamination moves the mean, so an asymmetric
+      # warm-up reads a regression off the difference between jobs.
+      - name: Warm up
+        run: mise run bench_warmup > /dev/null
+      - name: Run benchmarks
+        id: bench
+        shell: bash   # pipefail: otherwise tee's status hides a panic and partial output is published
+        run: mise run bench | tee output.txt
+      - name: Check bench output
+        id: parsed
+        run: bash scripts/check-bench-output.sh output.txt <min-count>
+      - name: Publish and compare
+        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
+        with:
+          name: <series-key>   # permanent: a rename starts an empty series
+          tool: cargo
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          alert-threshold: '150%'
+          comment-on-alert: true
+          fail-threshold: '300%'
+          fail-on-alert: true
+          summary-always: true
+
+      # Every step after a fail-on-alert gate chains on an earlier non-gate step's outcome
+      # under !cancelled(), so a failed gate does not skip the remaining checks.
+      - name: Measure allocations
+        id: allocations
+        if: ${{ !cancelled() && steps.parsed.outcome == 'success' }}
+        shell: bash
+        run: <PROJECT>_MEMORY_SERIES=1 cargo test --package <crate-a> --test allocation --locked -- --nocapture | tee allocations.txt
+      - name: Assemble the memory series
+        id: memory
+        if: ${{ !cancelled() && steps.allocations.outcome == 'success' }}
+        shell: bash
+        run: |
+          records="$(grep -o '<PROJECT>-MEMORY-SERIES .*' allocations.txt | cut -d' ' -f2- | LC_ALL=C sort || true)"
+          if [ -z "$records" ]; then
+            echo 'the allocation tests published no records' >&2
+            exit 1
+          fi
+          duplicates="$(printf '%s\n' "$records" | cut -d'"' -f4 | LC_ALL=C uniq -d)"
+          if [ -n "$duplicates" ]; then
+            printf 'two records share one series name:\n%s\n' "$duplicates" >&2
+            exit 1
+          fi
+          printf '[%s]\n' "$(printf '%s\n' "$records" | paste -sd, -)" > memory.json
+          cat memory.json
+      - name: Fetch gh-pages for the memory series
+        id: pages
+        if: ${{ !cancelled() && steps.memory.outcome == 'success' }}
+        run: |
+          git checkout --quiet --force --detach "$GITHUB_SHA"
+          git fetch origin +gh-pages:gh-pages
+      - name: Publish and compare allocations
+        if: ${{ !cancelled() && steps.pages.outcome == 'success' }}
+        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
+        with:
+          name: memory
+          tool: customSmallerIsBetter
+          output-file-path: memory.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          skip-fetch-gh-pages: true
+          alert-threshold: '110%'
+          comment-on-alert: true
+          fail-threshold: '125%'   # inert until fail-on-alert is true
+          fail-on-alert: false
+          summary-always: true
+
+      # Needs `node = "22.18"` (or later) under [tools] in mise.toml: native type stripping.
+      - name: Install node for the bench floor check
+        if: ${{ !cancelled() && steps.parsed.outcome == 'success' }}
+        run: mise install node
+      - name: Test the floor checker
+        if: ${{ !cancelled() && steps.parsed.outcome == 'success' }}
+        run: node --test scripts/tests/check-bench-floors.test.ts
+      # Last step of the job: nothing may follow it.
+      - name: Check bench floors
+        if: ${{ !cancelled() && steps.parsed.outcome == 'success' }}
+        run: node scripts/check-bench-floors.ts output.txt
+
+  pull-request:
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    concurrency:
+      group: bench-pr-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Pin the SHA of the toolchain-named branch (e.g. 1.98.0): that branch bakes the toolchain in
+      # as the input default. A SHA taken from `master` needs `with: { toolchain: ... }`.
+      - uses: dtolnay/rust-toolchain@f8be11a05b1d4f3fcebe6410cc16743212b999b0 # <toolchain>
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: bench
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          install: false
+          cache_save: ${{ github.ref == 'refs/heads/main' }}
+      - name: Warm up
+        run: mise run bench_warmup > /dev/null
+      - name: Run benchmarks
+        id: bench
+        shell: bash
+        run: mise run bench | tee output.txt
+      - name: Check bench output
+        id: parsed
+        run: bash scripts/check-bench-output.sh output.txt <min-count>
+      # No token: reads gh-pages anonymously (public repos only), never pushes, cannot comment.
+      - name: Compare against main
+        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
+        with:
+          name: <series-key>
+          tool: cargo
+          output-file-path: output.txt
+          auto-push: false
+          alert-threshold: '150%'
+          comment-on-alert: false
+          fail-threshold: '300%'
+          fail-on-alert: true
+          summary-always: true
+      - name: Measure allocations
+        id: allocations
+        if: ${{ !cancelled() && steps.parsed.outcome == 'success' }}
+        shell: bash
+        run: <PROJECT>_MEMORY_SERIES=1 cargo test --package <crate-a> --test allocation --locked -- --nocapture | tee allocations.txt
+      - name: Assemble the memory series
+        id: memory
+        if: ${{ !cancelled() && steps.allocations.outcome == 'success' }}
+        shell: bash
+        run: |
+          records="$(grep -o '<PROJECT>-MEMORY-SERIES .*' allocations.txt | cut -d' ' -f2- | LC_ALL=C sort || true)"
+          if [ -z "$records" ]; then
+            echo 'the allocation tests published no records' >&2
+            exit 1
+          fi
+          duplicates="$(printf '%s\n' "$records" | cut -d'"' -f4 | LC_ALL=C uniq -d)"
+          if [ -n "$duplicates" ]; then
+            printf 'two records share one series name:\n%s\n' "$duplicates" >&2
+            exit 1
+          fi
+          printf '[%s]\n' "$(printf '%s\n' "$records" | paste -sd, -)" > memory.json
+          cat memory.json
+      # The comparison above left an unpushed local commit on gh-pages: detach, then force-fetch.
+      - name: Fetch gh-pages for the memory series
+        id: pages
+        if: ${{ !cancelled() && steps.memory.outcome == 'success' }}
+        run: |
+          git checkout --quiet --force --detach "$GITHUB_SHA"
+          git fetch origin +gh-pages:gh-pages
+      - name: Compare allocations against main
+        if: ${{ !cancelled() && steps.pages.outcome == 'success' }}
+        uses: benchmark-action/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
+        with:
+          name: memory
+          tool: customSmallerIsBetter
+          output-file-path: memory.json
+          auto-push: false
+          skip-fetch-gh-pages: true
+          alert-threshold: '110%'
+          comment-on-alert: false
+          fail-threshold: '125%'   # inert until fail-on-alert is true
+          fail-on-alert: false
+          summary-always: true
+      - name: Install node for the bench floor check
+        if: ${{ !cancelled() && steps.parsed.outcome == 'success' }}
+        run: mise install node
+      - name: Test the floor checker
+        if: ${{ !cancelled() && steps.parsed.outcome == 'success' }}
+        run: node --test scripts/tests/check-bench-floors.test.ts
+      - name: Check bench floors
+        if: ${{ !cancelled() && steps.parsed.outcome == 'success' }}
+        run: node scripts/check-bench-floors.ts output.txt
