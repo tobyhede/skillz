@@ -1,0 +1,14 @@
+{
+  "name": "tobyhede",
+  "owner": {
+    "name": "Toby Hede"
+  },
+  "description": "Personal agent skills for Codex and Claude Code.",
+  "plugins": [
+    {
+      "name": "skillz",
+      "source": "./plugins/skillz",
+      "description": "Personal agent skills for Codex and Claude Code."
+    }
+  ]
+}

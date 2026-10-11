@@ -1,0 +1,32 @@
+# Bench tasks for mise.toml. Use these exact commands locally and in CI.
+# Replace <crate-*>. Translate to just/make/xtask if the project has no mise.
+
+[tools]
+# The floor checker runs as TypeScript through native type stripping.
+node = "22.18"
+
+[tasks.bench]
+description = "Run the benchmarks in bencher format with the named CI budget"
+# `--benches` keeps integration-test harnesses out, and each benchmarked crate sets
+# `[lib] bench = false` to keep its unit-test harness out: they reject `--output-format`.
+#
+# `--output-format bencher` is load-bearing: the CI action parses each line with a regex that
+# matches only that format, and skips anything else silently (zero benchmarks stored, green).
+# Never add `--quick`: it drops benchmark names from those lines, with the same silent result.
+#
+# The four criterion flags are a budget sized to the gate (alert 150%, fail 300% across hosted
+# runners), which cannot see changes under tens of per cent. Criterion's defaults (3 s warm-up,
+# 5 s measurement, 100,000 bootstrap resamples) resolve ~2% at ~10 s per benchmark.
+# See references/harness.md § Command and budget.
+run = "cargo bench --package <crate-a> --package <crate-b> --benches --locked -- --output-format bencher --warm-up-time 0.5 --measurement-time 1 --sample-size 10 --nresamples 1000"
+
+[tasks.bench_warmup]
+description = "Run every benchmark once and discard the output, to settle a freshly compiled binary"
+# Criterion's per-benchmark warm-up does not settle first-run contamination of a fresh binary;
+# only a prior whole-binary pass does. Output goes to /dev/null, so measurement
+# time is cut to the floor. Keep it identical in every CI job that feeds or reads a series.
+run = "cargo bench --package <crate-a> --package <crate-b> --benches --locked -- --output-format bencher --warm-up-time 0.5 --measurement-time 0.1 --sample-size 10 --nresamples 1000"
+
+# In the test task, keep benches out of the test runner but still compiled by clippy:
+#   cargo nextest run --workspace --all-targets --locked -E 'not kind(bench)'
+#   cargo clippy --workspace --all-targets --locked -- -D warnings

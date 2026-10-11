@@ -1,0 +1,26 @@
+{
+  "name": "skillz",
+  "version": "0.1.0",
+  "description": "Personal agent skills for Codex and Claude Code.",
+  "author": {
+    "name": "Toby Hede"
+  },
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "codex",
+    "claude"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Skillz",
+    "shortDescription": "Reusable workflows for coding agents.",
+    "longDescription": "Personal workflows packaged as open Agent Skills for Codex and Claude Code.",
+    "developerName": "Toby Hede",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": [
+      "Show me the available skillz skills."
+    ]
+  }
+}

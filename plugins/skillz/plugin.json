@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "skillz",
+  "version": "0.1.0",
+  "description": "Personal agent skills for Codex and Claude Code.",
+  "author": {
+    "name": "Toby Hede"
+  },
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "codex",
+    "claude"
+  ]
+}

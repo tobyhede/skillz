@@ -1,0 +1,32 @@
+# Benchmark floors: named ceilings on the bencher-format numbers the bench task prints, held
+# separately from the ratio gate in .github/workflows/bench.yml. scripts/check-bench-floors.ts
+# reads this file and the same output.txt the ratio gate reads; it runs no benchmark.
+#
+# Why this exists beside the ratio gate: github-action-benchmark only compares a run against the
+# previous point stored for main, so an accepted regression re-baselines the series in silence.
+# The ratio gate answers "did this change make it worse"; this file answers "is it still as good
+# as we agreed it should be".
+#
+# A benchmark absent from this file is unguarded. Raising a figure is a plain edit here, visible
+# in review. The check fails loudly if a guarded name disappears from the output, so a rename
+# cannot drop a guard by accident.
+#
+# Fields, one [[floor]] table per guarded benchmark:
+#   name    — the bencher name exactly as printed in `test <name> ... bench: ...`
+#             (criterion groups print `group/parameter`).
+#   max_ns  — highest allowed figure in ns; strictly greater fails.
+#   runner  — the machine the figure was measured on. Figures from different machines are not
+#             interchangeable (one change measured 4.03x locally vs 5.58x on CI).
+#   source  — how the figure was derived, for whoever next decides whether raising it is warranted.
+#
+# Seed from at least two CI attempts of an accepted change, with ~45% headroom over the worse
+# attempt. Label any laptop-derived figure as not yet CI-measured.
+#
+# Restricted TOML subset: flat `key = "string"` or `key = 123` pairs inside [[floor]] blocks and
+# comments only. Anything else is a parse error.
+
+[[floor]]
+name = "<group>/<param>"
+max_ns = 4200
+runner = "ubuntu-latest (GitHub Actions hosted runner)"
+source = "CI runs <run-id-1>, <run-id-2> at <sha>: worse attempt 2,842 ns; ~45% headroom."
