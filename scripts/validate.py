@@ -183,12 +183,23 @@ def validate_shared_files(skills: list[Path]) -> None:
                 fail(path, f"differs from its copy {paths[0].relative_to(ROOT)}")
 
 
+def validate_readme(skills: list[Path]) -> None:
+    """The README lists every skill; a skill missing from it fails."""
+    readme = ROOT / "README.md"
+    links = set(LINK_RE.findall(readme.read_text(encoding="utf-8")))
+    for skill in skills:
+        target = (skill / "SKILL.md").relative_to(ROOT).as_posix()
+        if target not in links:
+            fail(readme, f"skill {skill.name} is missing from the skills table (link {target})")
+
+
 def main() -> int:
     validate_manifests()
     skills = sorted(path for path in SKILLS.iterdir() if path.is_dir() and not path.name.startswith("."))
     for skill in skills:
         validate_skill(skill)
     validate_shared_files(skills)
+    validate_readme(skills)
     if errors:
         print("Validation failed:", file=sys.stderr)
         for error in errors:

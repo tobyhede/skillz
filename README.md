@@ -1,13 +1,13 @@
 # Skillz
 
-Agent workflows for Codex and Claude Code, published as [open Agent Skills](https://agentskills.io).
+Personal agent workflows for Codex and Claude Code, published as [open Agent Skills](https://agentskills.io).
 
 ## Skills
 
 | Skill | Use it for |
 | --- | --- |
 | [`performance-engineering`](plugins/skillz/skills/performance-engineering/SKILL.md) | Designing, diagnosing, and optimizing software for latency, throughput, CPU, and memory. Works from user-facing budgets and representative measurement through algorithms, allocation, numerical contracts, and SIMD, with Rust and C++ guidance. |
-| [`rust-benchmark-ci`](plugins/skillz/skills/rust-benchmark-ci/SKILL.md) | Setting up criterion benchmarks and a CI regression gate you can trust: github-action-benchmark with committed floors, allocation-count series, and rules for when a benchmark number proves a performance claim. |
+| [`rust-benchmark-ci`](plugins/skillz/skills/rust-benchmark-ci/SKILL.md) | Setting up criterion benchmarks and a CI regression gate you can trust: github-action-benchmark with committed floors, a gh-pages benchmark series, allocation-count series, and rules for when a benchmark number proves a performance claim. |
 
 Both ship in the `skillz` plugin. Agents pick a skill from its description, so describe the problem ("this endpoint got slow", "add a benchmark gate to CI") and the matching skill loads.
 
@@ -20,9 +20,11 @@ Both ship in the `skillz` plugin. Agents pick a skill from its description, so d
 /plugin install skillz@tobyhede
 ```
 
+To develop against a local checkout, add the marketplace by path instead: `/plugin marketplace add /path/to/skillz`.
+
 **Codex**: add this repository as a plugin marketplace, then install `skillz` from the `tobyhede` marketplace.
 
-For local development, point the marketplace at your checkout instead (`/plugin marketplace add /path/to/skillz`). See the [Claude Code plugin marketplace docs](https://code.claude.com/docs/en/plugin-marketplaces) and [Codex skills docs](https://developers.openai.com/codex/skills/) for other options.
+See the [Claude Code plugin marketplace docs](https://code.claude.com/docs/en/plugin-marketplaces) and [Codex skills docs](https://developers.openai.com/codex/skills/) for other options.
 
 ## Layout
 
@@ -32,20 +34,23 @@ For local development, point the marketplace at your checkout instead (`/plugin 
 ├── .claude-plugin/marketplace.json    # Claude Code marketplace
 └── plugins/skillz/
     ├── plugin.json                     # Agent Plugins manifest
+    ├── .codex-plugin/plugin.json       # Codex manifest; its "skills" field publishes skills/
+    ├── .claude-plugin/plugin.json      # Claude Code manifest
     └── skills/<skill-name>/            # The one source for each skill
 ```
 
-Each skill is written once under `plugins/skillz/skills/` and both marketplaces publish that directory, so the Codex and Claude Code versions are always the same files.
+Both marketplaces point at `plugins/skillz`, and each skill is written once under `skills/`, so Codex and Claude Code load the same skill files. The three `plugin.json` manifests must agree on name, version, description, and license; bump the version in all three for a release.
 
 ## Contributing
 
-Add a skill at `plugins/skillz/skills/<skill-name>/SKILL.md`, following [CONTRIBUTING.md](CONTRIBUTING.md) for naming, descriptions, references, and the required behavior cases. Then run the validator, which pull requests also run in CI:
+Follow [CONTRIBUTING.md](CONTRIBUTING.md) to add or change a skill. Before opening a pull request, run the same checks CI runs:
 
 ```sh
 python3 scripts/validate.py
+for t in plugins/skillz/skills/*/tests; do ls "$t"/test_*.py >/dev/null 2>&1 && python3 -m unittest discover -s "$t"; done
 ```
 
-When you add a skill, add a row to the table above.
+The validator fails until a new skill has a row in the table above.
 
 ## License
 
