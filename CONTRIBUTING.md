@@ -47,4 +47,4 @@ python3 scripts/validate.py
 
 With Claude Code installed, also run `claude plugin validate . --strict` and `claude plugin validate plugins/skillz --strict`.
 
-The validator checks manifests, skill metadata, reference paths, size limits, and the behavior-case structure. It cannot prove instruction quality, so also exercise representative prompts in Codex or Claude Code.
+The validator checks manifests, skill metadata, reference paths, size limits, the behavior-case structure, and that every skill has a row in the README skills table. It cannot prove instruction quality, so also exercise representative prompts in Codex or Claude Code.
