@@ -1,0 +1,4 @@
+interface:
+  display_name: "Requirements Rewrite"
+  short_description: "Reconcile current requirements after major refactors"
+  default_prompt: "Use $requirements-rewrite to reconcile this repository’s requirements against its current design."
