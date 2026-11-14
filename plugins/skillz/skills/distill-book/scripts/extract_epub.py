@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import argparse
-import html
 import json
+import posixpath
 import re
 import sys
 import zipfile
@@ -57,7 +57,9 @@ class TextExtractor(HTMLParser):
         self.parts.append(data)
 
     def text(self) -> str:
-        value = html.unescape("".join(self.parts)).replace("\u00a0", " ")
+        # convert_charrefs=True has already decoded entities; unescaping again
+        # would turn a literal "&lt;br&gt;" in the book into "<br>".
+        value = "".join(self.parts).replace("\u00a0", " ")
         value = re.sub(r"[ \t]+", " ", value)
         value = re.sub(r" *\n *", "\n", value)
         value = re.sub(r"\n{3,}", "\n\n", value)
@@ -133,19 +135,26 @@ def main() -> int:
 
         package_dir = PurePosixPath(rootfile).parent
         records: list[dict[str, object]] = []
+        skipped: list[dict[str, object]] = []
         for index, item_id in enumerate(spine_ids, start=1):
             item = items.get(item_id)
             if not item or "href" not in item:
+                skipped.append({"spine_index": index, "id": item_id, "reason": "not in manifest"})
                 continue
-            source_path = str(package_dir / PurePosixPath(unquote(item["href"])))
+            # ZIP member names have no "..": resolve hrefs like ../Text/ch1.xhtml.
+            source_path = posixpath.normpath(str(package_dir / PurePosixPath(unquote(item["href"]))))
             try:
                 raw = archive.read(source_path).decode("utf-8", errors="replace")
             except KeyError:
+                skipped.append({"spine_index": index, "id": item_id, "source_path": source_path,
+                                "reason": "missing from archive"})
                 continue
             extractor = TextExtractor()
             extractor.feed(raw)
             text = extractor.text()
             if not text:
+                skipped.append({"spine_index": index, "id": item_id, "source_path": source_path,
+                                "reason": "no extractable text"})
                 continue
             title = extractor.title() or PurePosixPath(source_path).stem
             filename = f"{index:03d}-{safe_name(title)}.txt"
@@ -166,11 +175,14 @@ def main() -> int:
         "source_file": str(args.epub.resolve()),
         "sections_extracted": len(records),
         "sections": records,
+        "skipped": skipped,
     }
     (args.output_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     print(f"extracted {len(records)} sections to {args.output_dir}")
+    for gap in skipped:
+        print(f"warning: skipped spine {gap['spine_index']} ({gap['id']}): {gap['reason']}", file=sys.stderr)
     return 0 if records else 1
 
 

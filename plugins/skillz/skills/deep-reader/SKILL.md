@@ -46,6 +46,7 @@ sibling of the source file, so it survives across sessions:
 ```
 <slug>-notes/
 ├── source.txt          # full text with [[page N]] markers — the coordinate system
+├── source.id           # hash of the input file, so the workspace is never reused for another book
 ├── chapters.tsv        # confirmed structure: chNN<TAB>from<TAB>to<TAB>title
 ├── chapters/           # per-chapter files cut by split-chapters.sh
 │   └── ch01-<slug>.txt
@@ -107,6 +108,9 @@ Two branches before you go further:
   PDF/EPUB directly with the Read tool in page batches. You lose
   `verify-quotes.sh`'s mechanical check in this fallback; compensate with
   more frequent manual re-reads of anything you quote.
+- **Exit code 3** (workspace was prepared from a different file, such as
+  two books whose names map to the same `<slug>-notes/`) — pass a distinct
+  workspace directory as the second argument.
 - **Scripts misbehaving?** Run `bash ./scripts/self-test.sh` — it distinguishes
   an environment problem (missing/broken dependencies) from a usage problem.
 
@@ -237,7 +241,8 @@ bash ./scripts/verify-quotes.sh <workspace>
 
 For every `FAIL` or `NEAR` line, re-open the cited pages with `read-pages.sh`
 and fix either the quote text or the page number, then re-run until it exits
-0. This catches fabricated quotes and off-by-a-page citations, but it can only
+0. A `SKIP` line is a quote with no letters or digits left to compare; check
+it by hand or drop the quotation marks. This catches fabricated quotes and off-by-a-page citations, but it can only
 check quotes — it can't check paraphrase.
 
 So finish by hand: pick the 5–10 most load-bearing paraphrased claims in

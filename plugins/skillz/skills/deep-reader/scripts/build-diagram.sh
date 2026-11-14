@@ -65,14 +65,17 @@ BEGIN { FS = "\t"; n = 0; any_part = 0 }
   is_part[n] = ($1 ~ /^[Pp][0-9]+$/) ? 1 : 0
   if (is_part[n]) any_part = 1
 }
+# Mermaid mindmaps take parentage from indentation and allow one root, so
+# every row sits deeper than the title (2 spaces): parts and flat chapters at
+# 4, chapters under a part at 6.
 END {
   for (i = 1; i <= n; i++) {
     if (is_part[i]) {
-      print "  \"" hdgs[i] "\""
+      print "    \"" hdgs[i] "\""
     } else {
       label = ids[i] ": " hdgs[i] " (pp. " froms[i] "–" tos[i] ")"
-      if (any_part) print "    \"" label "\""
-      else          print "  \"" label "\""
+      if (any_part) print "      \"" label "\""
+      else          print "    \"" label "\""
     }
   }
 }
@@ -87,7 +90,17 @@ if [ "$append" = true ]; then
   [ -f "$map_md" ] || : > "$map_md"
   tmp_map="$(mktemp)"
 
-  if grep -q '<!-- diagram:start -->' "$map_md" 2>/dev/null; then
+  has_start=false; has_end=false
+  grep -q '<!-- diagram:start -->' "$map_md" 2>/dev/null && has_start=true
+  grep -q '<!-- diagram:end -->' "$map_md" 2>/dev/null && has_end=true
+  if [ "$has_start" != "$has_end" ]; then
+    # Replacing from a start marker with no end marker would delete the rest
+    # of map.md, so stop and leave the file untouched.
+    echo "map.md has only one of <!-- diagram:start --> / <!-- diagram:end -->; restore the missing marker and rerun." >&2
+    exit 1
+  fi
+
+  if [ "$has_start" = true ]; then
     tmp_diagram="$(mktemp)"
     printf '%s\n' "$diagram" > "$tmp_diagram"
     # -v can't hold a multi-line value on every awk (BSD awk rejects embedded

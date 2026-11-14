@@ -47,25 +47,35 @@ UI = {
 }
 
 
+SAFE_SCHEMES = ("http:", "https:", "mailto:")
+
+
+def is_relative(target: str) -> bool:
+    """True for a link with no scheme or host, such as ./book.html#L5."""
+    return not re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target) and not target.startswith("//")
+
+
 def inline(text: str) -> str:
     value = html.escape(text)
-    value = re.sub(
-        r"\[([^]]+)]\([^)]*#L(\d+)\)",
-        lambda m: (
-            f'<a class="source-link" href="#source-L{m.group(2)}" '
-            f'data-line="{m.group(2)}">{m.group(1)} <span aria-hidden="true">↗</span></a>'
-        ),
-        value,
-    )
 
-    def remaining_link(match: re.Match[str]) -> str:
+    def link(match: re.Match[str]) -> str:
         label, target = match.groups()
-        path = target.split("#", 1)[0].lower()
-        if target.startswith(("./", "../")) and path.endswith((".txt", ".html", ".htm")):
-            return f'<a class="source-link" href="#source-L1" data-line="1">{label} <span aria-hidden="true">↗</span></a>'
-        return f'<a href="{target}">{label}</a>'
+        path, _, fragment = target.partition("#")
+        if is_relative(target):
+            line = re.fullmatch(r"L(\d+)", fragment)
+            if line:
+                n = line.group(1)
+                return f'<a class="source-link" href="#source-L{n}" data-line="{n}">{label} <span aria-hidden="true">↗</span></a>'
+            if target.startswith(("./", "../")) and path.lower().endswith((".txt", ".html", ".htm")):
+                return f'<a class="source-link" href="#source-L1" data-line="1">{label} <span aria-hidden="true">↗</span></a>'
+            return f'<a href="{target}">{label}</a>'
+        # The report is written from untrusted book text, so only well-known
+        # schemes become live links; anything else (javascript:, data:) is text.
+        if target.lower().startswith(SAFE_SCHEMES) or target.startswith("//"):
+            return f'<a href="{target}">{label}</a>'
+        return label
 
-    value = re.sub(r"\[([^]]+)]\(([^)]+)\)", remaining_link, value)
+    value = re.sub(r"\[([^]]+)]\(([^)]+)\)", link, value)
     value = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", value)
     value = re.sub(r"`([^`]+)`", r"<code>\1</code>", value)
     return value
@@ -159,7 +169,7 @@ def build(report: Path, source: Path, output: Path, language: str, title: str | 
 <header class="top"><div class="brand">{html.escape(title)}</div><div class="hint">{labels['subtitle']}</div><div class="space"></div><button class="icon" id="theme" aria-label="{labels['theme']}">◐</button><button class="primary" id="open">{labels['source']}</button></header>
 <div class="layout"><nav class="toc"><p>{labels['toc']}</p>{toc_links}</nav><main><select class="mobile-toc" id="jump"><option value="">{labels['choose']}</option>{options}</select><article>{report_html}</article></main><aside class="about"><h2>{labels['source']}</h2><p>{labels['source_help']}</p><button class="primary" id="open-side">{labels['open']}</button></aside></div>
 <div class="shade" id="shade"></div><aside class="drawer" id="drawer" aria-hidden="true"><div class="drawer-head"><input class="search" id="search" aria-label="{labels['search']}" placeholder="{labels['search']}"><button class="primary" id="next">{labels['next']}</button><button class="icon" id="close" aria-label="{labels['close']}">×</button></div><div class="status" id="status">{labels['lines'].format(n=f'{len(text_lines):,}')}</div><div class="source">{source_html}</div></aside>
-<script>const D=document.getElementById('drawer'),S=document.getElementById('shade'),Q=document.getElementById('search'),T=document.getElementById('status'),LS=[...document.querySelectorAll('.source-line')];let C=-1;function panel(v){{D.classList.toggle('open',v);S.classList.toggle('show',v);D.setAttribute('aria-hidden',String(!v));}}function go(n){{panel(true);const x=document.getElementById('source-L'+n);if(!x)return;document.querySelector('.source-line.active')?.classList.remove('active');x.classList.add('active');x.scrollIntoView({{block:'center',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'}});T.textContent={ui['line']!r}.replace('{{n}}',n)}}document.addEventListener('click',e=>{{const a=e.target.closest('.source-link');if(a){{e.preventDefault();go(a.dataset.line)}}}});document.getElementById('open').onclick=()=>panel(true);document.getElementById('open-side').onclick=()=>panel(true);document.getElementById('close').onclick=()=>panel(false);S.onclick=()=>panel(false);document.addEventListener('keydown',e=>{{if(e.key==='Escape')panel(false)}});function find(){{const q=Q.value.trim().toLocaleLowerCase();if(!q)return Q.focus();for(let d=1;d<=LS.length;d++){{const i=(C+d)%LS.length;if(LS[i].innerText.toLocaleLowerCase().includes(q)){{C=i;go(LS[i].dataset.line);T.textContent={ui['found']!r}.replace('{{q}}',Q.value.trim()).replace('{{n}}',LS[i].dataset.line);return}}}}T.textContent={ui['missing']!r}.replace('{{q}}',Q.value.trim())}}document.getElementById('next').onclick=find;Q.onkeydown=e=>{{if(e.key==='Enter')find()}};document.getElementById('jump').onchange=e=>{{if(e.target.value)location.hash=e.target.value}};document.getElementById('theme').onclick=()=>{{const n=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=n;localStorage.setItem('book-theme',n)}};const saved=localStorage.getItem('book-theme');if(saved)document.documentElement.dataset.theme=saved;</script></body></html>'''
+<script>const D=document.getElementById('drawer'),S=document.getElementById('shade'),Q=document.getElementById('search'),T=document.getElementById('status'),LS=[...document.querySelectorAll('.source-line')];let C=-1;function panel(v){{D.classList.toggle('open',v);S.classList.toggle('show',v);D.setAttribute('aria-hidden',String(!v));}}function go(n){{panel(true);const x=document.getElementById('source-L'+n);if(!x)return;document.querySelector('.source-line.active')?.classList.remove('active');x.classList.add('active');x.scrollIntoView({{block:'center',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'}});T.textContent={ui['line']!r}.replace('{{n}}',n)}}document.addEventListener('click',e=>{{const a=e.target.closest('.source-link');if(a){{e.preventDefault();go(a.dataset.line)}}}});document.getElementById('open').onclick=()=>panel(true);document.getElementById('open-side').onclick=()=>panel(true);document.getElementById('close').onclick=()=>panel(false);S.onclick=()=>panel(false);document.addEventListener('keydown',e=>{{if(e.key==='Escape')panel(false)}});function find(){{const q=Q.value.trim().toLocaleLowerCase();if(!q)return Q.focus();for(let d=1;d<=LS.length;d++){{const i=(C+d)%LS.length;if(LS[i].lastElementChild.textContent.toLocaleLowerCase().includes(q)){{C=i;go(LS[i].dataset.line);T.textContent={ui['found']!r}.replace('{{q}}',Q.value.trim()).replace('{{n}}',LS[i].dataset.line);return}}}}T.textContent={ui['missing']!r}.replace('{{q}}',Q.value.trim())}}document.getElementById('next').onclick=find;Q.onkeydown=e=>{{if(e.key==='Enter')find()}};document.getElementById('jump').onchange=e=>{{if(e.target.value)location.hash=e.target.value}};document.getElementById('theme').onclick=()=>{{const n=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=n;localStorage.setItem('book-theme',n)}};const saved=localStorage.getItem('book-theme');if(saved)document.documentElement.dataset.theme=saved;</script></body></html>'''
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(doc, encoding="utf-8")
     print(f"Wrote {output} with {len(text_lines)} anchored source lines")

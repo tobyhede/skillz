@@ -62,6 +62,11 @@ first=true
 while IFS="$(printf '\t')" read -r id from to title; do
   [ -n "$id" ] || continue
 
+  # The id becomes part of a file name: keep it a single safe path component.
+  case "$id" in
+    (*[!A-Za-z0-9_-]*) echo "Invalid id: $id (use letters, digits, '-' or '_', e.g. ch01)" >&2; exit 1 ;;
+  esac
+
   case "$from" in (*[!0-9]*|'') echo "Invalid 'from' for $id: $from" >&2; exit 1 ;; esac
   case "$to" in (*[!0-9]*|'') echo "Invalid 'to' for $id: $to" >&2; exit 1 ;; esac
   if [ "$from" -lt 1 ] || [ "$to" -lt "$from" ] || [ "$to" -gt "$max_page" ]; then

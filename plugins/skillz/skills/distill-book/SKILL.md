@@ -40,7 +40,7 @@ For EPUB, run:
 python3 scripts/extract_epub.py BOOK.epub --output-dir EXTRACTED_DIR
 ```
 
-Read `manifest.json`, then analyze chapter files in spine order.
+Read `manifest.json`, then analyze chapter files in spine order. Its `skipped` list names every spine entry that could not be extracted and why; carry each one into the report's coverage section as an extraction gap.
 
 For PDF:
 

@@ -3,8 +3,10 @@
 #
 # Converts a book/paper source file into a plain-text workspace copy with
 # [[page N]] markers (the coordinate system every other deep-reader script
-# relies on). Idempotent: if the workspace already has a source.txt, it is
-# reported as-is instead of being reconverted.
+# relies on). Idempotent: if the workspace already has a source.txt built from
+# the same input (checked against the hash in source.id), it is reported as-is
+# instead of being reconverted. Exit 1 on usage errors, 2 when pdftotext or
+# pandoc is missing, 3 when the workspace belongs to a different source file.
 set -euo pipefail
 
 usage() {
@@ -30,7 +32,15 @@ esac
 
 name_noext="${base%.*}"
 slug="$(printf '%s' "$name_noext" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')"
-[ -n "$slug" ] || slug="doc"
+
+# SHA-256 of stdin; works with GNU coreutils or macOS shasum.
+hash_stdin() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum; else shasum -a 256; fi | cut -d' ' -f1
+}
+
+# A name with no ASCII letters or digits (e.g. a Chinese title) slugs to
+# nothing; suffix a hash of the name so two such books never share a workspace.
+[ -n "$slug" ] || slug="doc-$(printf '%s' "$name_noext" | hash_stdin | cut -c1-8)"
 
 dir_of_input="$(cd "$(dirname "$input")" && pwd)"
 
@@ -52,8 +62,24 @@ tmp_out=""
 cleanup() { rm -f "${tmp_out:-}" 2>/dev/null; return 0; }
 trap cleanup EXIT
 
+# source.id records which input the workspace was built from, so a workspace
+# is never reused for a different book that happens to map to the same path.
+source_id_file="$workspace/source.id"
+input_hash="$(hash_stdin < "$input")"
+
 existing=false
 if [ -s "$source_txt" ]; then
+  if [ -s "$source_id_file" ] && [ "$(cat "$source_id_file")" != "$input_hash" ]; then
+    {
+      echo "Workspace $workspace was prepared from a different source file."
+      echo "Pass a different workspace directory as the second argument, or remove this workspace to rebuild it."
+    } >&2
+    exit 3
+  fi
+  if [ ! -s "$source_id_file" ]; then
+    echo "warning: workspace predates source.id; adopting it for $input without checking" >&2
+    printf '%s\n' "$input_hash" > "$source_id_file"
+  fi
   existing=true
   echo "Workspace already prepared; reporting existing stats: $source_txt" >&2
 else
@@ -145,6 +171,7 @@ else
 
   mv "$tmp_out" "$source_txt"
   tmp_out=""
+  printf '%s\n' "$input_hash" > "$source_id_file"
 fi
 
 pages=$(grep -Ec '^\[\[page [0-9]+\]\]$' "$source_txt")

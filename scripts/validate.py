@@ -18,6 +18,7 @@ LINK_RE = re.compile(r"\[[^]]*]\(([^)]+)\)")
 REQUIRED_CASES = ("Should activate", "Should not activate", "Expected behavior")
 RESERVED_WORDS = ("anthropic", "claude")
 XML_TAG_RE = re.compile(r"<[^>]+>")
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 errors: list[str] = []
 
 
@@ -65,6 +66,27 @@ def parse_frontmatter(path: Path, text: str) -> dict[str, str]:
     if not "\n".join(lines[end + 1 :]).strip():
         fail(path, "instruction body must not be empty")
     return fields
+
+
+def strip_fenced_code(text: str) -> str:
+    """Drop fenced code blocks: links inside them are examples, not references.
+
+    A fence may be indented (inside a list item) and longer than three
+    characters; it closes only on a run of the same character at least as long.
+    """
+    kept: list[str] = []
+    fence = ""
+    for line in text.splitlines():
+        match = FENCE_RE.match(line)
+        if fence:
+            if match and match.group(1)[0] == fence[0] and len(match.group(1)) >= len(fence) \
+                    and not line.strip()[len(match.group(1)):].strip():
+                fence = ""
+        elif match:
+            fence = match.group(1)
+        else:
+            kept.append(line)
+    return "\n".join(kept)
 
 
 def validate_manifests() -> None:
@@ -151,9 +173,7 @@ def validate_skill(skill: Path) -> None:
     if "[TODO:" in text:
         fail(path, "contains an unfinished scaffold placeholder")
 
-    # Links inside fenced code blocks are examples, not references.
-    prose = re.sub(r"(?ms)^(```|~~~).*?^\1[^\n]*$", "", text)
-    for target in LINK_RE.findall(prose):
+    for target in LINK_RE.findall(strip_fenced_code(text)):
         target = target.split("#", 1)[0]
         if not target or "://" in target or target.startswith(("#", "mailto:")):
             continue

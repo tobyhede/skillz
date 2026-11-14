@@ -43,10 +43,23 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run([sys.executable, "-I", *args], capture_output=True, text=True, timeout=60)
 
 
-class ExtractEpub(unittest.TestCase):
+class TempDirTestCase(unittest.TestCase):
     def setUp(self) -> None:
-        self.tmp = Path(tempfile.mkdtemp())
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+
+
+class ExtractEpub(TempDirTestCase):
+    def setUp(self) -> None:
+        super().setUp()
         self.out = self.tmp / "out"
+
+    def extract(self, epub: Path) -> subprocess.CompletedProcess[str]:
+        return run(str(SCRIPTS / "extract_epub.py"), str(epub), "--output-dir", str(self.out))
+
+    def manifest(self) -> dict:
+        return json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
 
     def make_epub(self, files: dict[str, str]) -> Path:
         path = self.tmp / "book.epub"
@@ -63,11 +76,14 @@ class ExtractEpub(unittest.TestCase):
             "OEBPS/text/chapter 1.xhtml": CH1,
             "OEBPS/text/ch2.xhtml": CH2,
         })
-        result = run(str(SCRIPTS / "extract_epub.py"), str(epub), "--output-dir", str(self.out))
+        result = self.extract(epub)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        manifest = self.manifest()
         self.assertEqual(manifest["sections_extracted"], 2)
+        self.assertEqual(
+            [(gap["spine_index"], gap["reason"]) for gap in manifest["skipped"]], [(2, "missing from archive")]
+        )
         sections = manifest["sections"]
         # Non-linear cover is skipped; missing spine item is skipped; indices keep spine order.
         self.assertEqual([s["spine_index"] for s in sections], [1, 3])
@@ -82,21 +98,43 @@ class ExtractEpub(unittest.TestCase):
         self.assertNotIn("alert", text)
         self.assertNotIn("color:red", text)
 
+    def test_resolves_parent_relative_hrefs(self) -> None:
+        opf = OPF.replace('href="text/chapter%201.xhtml"', 'href="../Text/one.xhtml"')
+        epub = self.make_epub({
+            "META-INF/container.xml": CONTAINER.replace("OEBPS/content.opf", "OEBPS/pkg/content.opf"),
+            "OEBPS/pkg/content.opf": opf,
+            "OEBPS/Text/one.xhtml": CH1,
+        })
+        result = self.extract(epub)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        sections = self.manifest()["sections"]
+        self.assertEqual([s["source_path"] for s in sections], ["OEBPS/Text/one.xhtml"])
+
+    def test_keeps_escaped_markup_literal(self) -> None:
+        epub = self.make_epub({
+            "META-INF/container.xml": CONTAINER,
+            "OEBPS/content.opf": OPF,
+            "OEBPS/text/chapter 1.xhtml": "<html><body><p>use &amp;lt;br&amp;gt; tag</p></body></html>",
+        })
+        self.assertEqual(self.extract(epub).returncode, 0)
+        text = (self.out / self.manifest()["sections"][0]["output_file"]).read_text(encoding="utf-8")
+        self.assertIn("use &lt;br&gt; tag", text)
+
     def test_missing_file_exits_2(self) -> None:
-        result = run(str(SCRIPTS / "extract_epub.py"), str(self.tmp / "nope.epub"), "--output-dir", str(self.out))
+        result = self.extract(self.tmp / "nope.epub")
         self.assertEqual(result.returncode, 2)
         self.assertIn("file not found", result.stderr)
 
     def test_not_a_zip_exits_2(self) -> None:
         bad = self.tmp / "bad.epub"
         bad.write_text("not a zip", encoding="utf-8")
-        result = run(str(SCRIPTS / "extract_epub.py"), str(bad), "--output-dir", str(self.out))
+        result = self.extract(bad)
         self.assertEqual(result.returncode, 2)
         self.assertIn("not a valid EPUB", result.stderr)
 
     def test_missing_container_exits_2(self) -> None:
         epub = self.make_epub({"mimetype": "application/epub+zip"})
-        result = run(str(SCRIPTS / "extract_epub.py"), str(epub), "--output-dir", str(self.out))
+        result = self.extract(epub)
         self.assertEqual(result.returncode, 2)
         self.assertIn("malformed EPUB", result.stderr)
 
@@ -106,15 +144,15 @@ class ExtractEpub(unittest.TestCase):
             "OEBPS/content.opf": OPF,
             "OEBPS/text/chapter 1.xhtml": "<html><body><script>x</script></body></html>",
         })
-        result = run(str(SCRIPTS / "extract_epub.py"), str(epub), "--output-dir", str(self.out))
+        result = self.extract(epub)
         self.assertEqual(result.returncode, 1)
-        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        manifest = self.manifest()
         self.assertEqual(manifest["sections_extracted"], 0)
 
 
-class BuildHtmlReport(unittest.TestCase):
+class BuildHtmlReport(TempDirTestCase):
     def setUp(self) -> None:
-        self.tmp = Path(tempfile.mkdtemp())
+        super().setUp()
         self.source = self.tmp / "book.txt"
         self.source.write_text("line one\n<b>line two</b>\nline three\n", encoding="utf-8")
 
@@ -139,6 +177,25 @@ class BuildHtmlReport(unittest.TestCase):
         self.assertIn("&lt;b&gt;line two&lt;/b&gt;", doc)
         self.assertNotIn("<b>line two</b>", doc)
         self.assertIn("<strong>Claim</strong>", doc)
+
+    def test_unsafe_link_schemes_are_not_live(self) -> None:
+        result, doc = self.build(
+            "# B\n\n[a](javascript:alert%281%29) [b](JavaScript:x) [c](data:text/html,x) [ok](https://example.com)\n"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('href="javascript', doc.lower())
+        self.assertNotIn('href="data:', doc)
+        self.assertIn('<a href="https://example.com">ok</a>', doc)
+
+    def test_external_line_fragments_keep_their_destination(self) -> None:
+        _, doc = self.build("# B\n\n[gh](https://github.com/a/b/blob/main/f.py#L10)\n")
+        self.assertIn('href="https://github.com/a/b/blob/main/f.py#L10"', doc)
+        self.assertNotIn('href="#source-L10"', doc)
+
+    def test_search_ignores_line_numbers(self) -> None:
+        _, doc = self.build("# B\n")
+        self.assertIn("lastElementChild.textContent", doc)
+        self.assertNotIn("LS[i].innerText", doc)
 
     def test_detects_chinese_and_honours_overrides(self) -> None:
         result, doc = self.build("# 思考\n\n正文\n")
