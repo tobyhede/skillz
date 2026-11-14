@@ -13,6 +13,10 @@ Add skills under `plugins/skillz/skills/<skill-name>/`. The directory is the sin
 - Put generated-output templates and other copied resources in `assets/`.
 - Add `agents/openai.yaml` only when the skill needs Codex UI metadata, explicit-only invocation, or declared tool dependencies.
 
+## Third-party skills
+
+A skill written by someone else may be vendored when its license allows redistribution. Keep its upstream `LICENSE` in the skill directory, and add a `PROVENANCE.md` that names the upstream repository, the exact commit, the author, and every local change. Keep upstream files byte-identical where you can, so a later update is a clean diff. A vendored skill meets the same contract as any other, including `tests/prompts.md`, tests for its scripts, and a README row.
+
 ## Behavior cases
 
 Every skill must include `tests/prompts.md` with these sections:
