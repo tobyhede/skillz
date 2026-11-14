@@ -8,7 +8,7 @@ Personal agent workflows for Codex and Claude Code, published as [open Agent Ski
 | --- | --- |
 | [`performance-engineering`](plugins/skillz/skills/performance-engineering/SKILL.md) | Designing, diagnosing, and optimizing software for latency, throughput, CPU, and memory. Works from user-facing budgets and representative measurement through algorithms, allocation, numerical contracts, and SIMD, with Rust and C++ guidance. |
 | [`rust-benchmark-ci`](plugins/skillz/skills/rust-benchmark-ci/SKILL.md) | Setting up criterion benchmarks and a CI regression gate you can trust: github-action-benchmark with committed floors, a gh-pages benchmark series, allocation-count series, and rules for when a benchmark number proves a performance claim. |
-| [`requirements-rewrite`](plugins/skillz/skills/requirements-rewrite/SKILL.md) | Consolidating historical ADRs and overlapping guides into current requirements, or reconciling requirements after substantial refactoring, with source traces, independent audits and freshness checks. |
+| [`requirements-rewrite`](plugins/skillz/skills/requirements-rewrite/SKILL.md) | Restating accepted ADRs and overlapping guides as a requirements snapshot at a recorded revision, or refreshing it after refactoring or new ADRs, while ADRs stay the binding history and the CONTEXT.md and ADR workflow route through the snapshot. |
 
 All ship in the `skillz` plugin. Agents pick a skill from its description, so describe the problem ("this endpoint got slow", "add a benchmark gate to CI", "refresh our requirements after the refactor") and the matching skill loads.
 

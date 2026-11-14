@@ -1,6 +1,6 @@
 # Audit
 
-Use this after drafting and again for topics affected by upstream changes. Mechanical checks and semantic review answer different questions.
+Use this after drafting and again for topics affected by upstream changes; the fresh-reader questions and expected answers are fixed earlier, during Inventory. Mechanical checks and semantic review answer different questions.
 
 ## Coverage and consistency
 
@@ -25,7 +25,7 @@ Give an independent reader the entry-point instructions and a realistic task. Al
 
 Choose scenarios that cross ownership boundaries: recovery invalidating pending work, deletion affecting references, a URL changing selection, or a child operation inheriting its caller’s policy. Include an ordinary task to check that the reading path is not optimized only for edge cases.
 
-Compare the answer with an evidence-backed expected answer prepared separately. Distinguish failure to find a rule from ambiguity in the rule and from a wrong rule. Fix the pointer before inlining a whole document when discovery is the failure. Rerun affected exercises after correction.
+Write the scenarios and their evidence-backed expected answers from the sources during Inventory, before drafting, so the draft cannot shape them; record them in the run record. Compare the reader's answer with that fixed expected answer. Distinguish failure to find a rule from ambiguity in the rule and from a wrong rule. Fix the pointer before inlining a whole document when discovery is the failure. Rerun affected exercises after correction.
 
 ## Freshness
 

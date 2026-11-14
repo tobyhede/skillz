@@ -1,4 +1,4 @@
 interface:
   display_name: "Requirements Rewrite"
-  short_description: "Reconcile current requirements after major refactors"
-  default_prompt: "Use $requirements-rewrite to reconcile this repository’s requirements against its current design."
+  short_description: "Snapshot ADRs into current requirements and keep them in step"
+  default_prompt: "Use $requirements-rewrite to restate this repository’s accepted ADRs as a requirements snapshot, or refresh the existing snapshot against ADRs accepted since its marker."

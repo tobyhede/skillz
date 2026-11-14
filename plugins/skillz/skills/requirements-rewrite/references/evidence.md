@@ -25,7 +25,7 @@ Split a source paragraph when its obligations have different owners or outcomes.
 
 ## Requirement evidence
 
-Record intended behaviour, reason, status and evidence together. Use the repository's status vocabulary consistently. Useful distinctions are built with verified coverage, built with no verified test, not built, and code differs from the decided behaviour.
+Record intended behaviour, reason and evidence together. Record status beside them only where the repository keeps build status in requirements; otherwise list unbuilt behaviour apart from the rules and link each gap to where status is tracked, such as a delivery issue. Use the repository's status vocabulary consistently. Useful distinctions are built with verified coverage, built with no verified test, not built, and code differs from the decided behaviour.
 
 Cite code by path and symbol and tests by path and case name at the reviewed revision. Identify whether a test was inspected or executed. A test name alone is not proof: inspect its setup and assertions. Record assumptions and uncovered cases explicitly.
 
