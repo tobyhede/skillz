@@ -6,6 +6,8 @@ Personal agent workflows for Codex and Claude Code, published as [open Agent Ski
 
 | Skill | Use it for |
 | --- | --- |
+| [`deep-reader`](plugins/skillz/skills/deep-reader/SKILL.md) | Studying a long book, thesis, or paper chapter by chapter without loading it all into context, keeping page-anchored notes you can come back to and verifying quotes against the source. Third-party, from [tronghieu/agent-skills](https://github.com/tronghieu/agent-skills). |
+| [`distill-book`](plugins/skillz/skills/distill-book/SKILL.md) | Turning an EPUB or PDF into a 30-second, 3-minute, and 10-minute briefing of its most valuable ideas, with every claim linked back to the source and an optional interactive HTML reader. Third-party, from [qianquandong/book80-skill](https://github.com/qianquandong/book80-skill). |
 | [`performance-engineering`](plugins/skillz/skills/performance-engineering/SKILL.md) | Designing, diagnosing, and optimizing software for latency, throughput, CPU, and memory. Works from user-facing budgets and representative measurement through algorithms, allocation, numerical contracts, and SIMD, with Rust and C++ guidance. |
 | [`rust-benchmark-ci`](plugins/skillz/skills/rust-benchmark-ci/SKILL.md) | Setting up criterion benchmarks and a CI regression gate you can trust: github-action-benchmark with committed floors, a gh-pages benchmark series, allocation-count series, and rules for when a benchmark number proves a performance claim. |
 | [`requirements-rewrite`](plugins/skillz/skills/requirements-rewrite/SKILL.md) | Restating accepted ADRs and overlapping guides as a requirements snapshot at a recorded revision, or refreshing it after refactoring or new ADRs, while ADRs stay the binding history and the CONTEXT.md and ADR workflow route through the snapshot. |
@@ -55,4 +57,4 @@ The validator fails until a new skill has a row in the table above.
 
 ## License
 
-MIT
+MIT. Third-party skills keep their upstream license and attribution in their own directory: see each skill's `LICENSE` and `PROVENANCE.md`.

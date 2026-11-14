@@ -1,0 +1,4 @@
+interface:
+  display_name: "Distill Book"
+  short_description: "Understand books fast with source-linked HTML"
+  default_prompt: "Use $distill-book to create a concise, source-grounded briefing with an interactive HTML reader."

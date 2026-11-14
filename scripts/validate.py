@@ -151,7 +151,9 @@ def validate_skill(skill: Path) -> None:
     if "[TODO:" in text:
         fail(path, "contains an unfinished scaffold placeholder")
 
-    for target in LINK_RE.findall(text):
+    # Links inside fenced code blocks are examples, not references.
+    prose = re.sub(r"(?ms)^(```|~~~).*?^\1[^\n]*$", "", text)
+    for target in LINK_RE.findall(prose):
         target = target.split("#", 1)[0]
         if not target or "://" in target or target.startswith(("#", "mailto:")):
             continue
