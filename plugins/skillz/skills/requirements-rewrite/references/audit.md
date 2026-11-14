@@ -6,6 +6,17 @@ Use this after drafting and again for topics affected by upstream changes; the f
 
 For each source disposition, check that the destination preserves its intended obligation or that the omission has a defensible reason. Review exceptions and cross-topic operations as well as the ordinary path.
 
+Check placement against this table, using the repository's own filenames:
+
+| Content | Belongs in |
+| --- | --- |
+| Task pointers and universal constraints | Agent entry points |
+| Term definitions and distinctions | Glossary (usually `CONTEXT.md`) |
+| Operational obligations | Requirements |
+| Reasoning, rejected alternatives and history | ADRs |
+| Commands, packages, scripts and configuration values | Their own manifest, config file or command help |
+| Build status and implementation gaps | Where the repository tracks delivery |
+
 Check especially:
 
 - Code differs from a ruling but the requirement was quietly rewritten to match code.
@@ -14,6 +25,7 @@ Check especially:
 - “Presentation-only” removed reachability, focus, meaning or stored behaviour.
 - Two docs own the same rule or assign different outcomes to the same action.
 - Old guidance still appears binding through an agent entry point, a skill or a diagnostic.
+- An agent entry point or guide lists commands, packages, scripts or configuration values that their manifest, config file or command help already owns.
 - Glossary entries carry an operational policy that can drift from its owner.
 - A rationale asserts an unverified mechanism, such as how an exception affects the UI.
 
@@ -25,11 +37,11 @@ Give an independent reader the entry-point instructions and a realistic task. Al
 
 Choose scenarios that cross ownership boundaries: recovery invalidating pending work, deletion affecting references, a URL changing selection, or a child operation inheriting its caller’s policy. Include an ordinary task to check that the reading path is not optimized only for edge cases.
 
-Write the scenarios and their evidence-backed expected answers from the sources during Inventory, before drafting, so the draft cannot shape them; record them in the run record. Compare the reader's answer with that fixed expected answer. Distinguish failure to find a rule from ambiguity in the rule and from a wrong rule. Fix the pointer before inlining a whole document when discovery is the failure. Rerun affected exercises after correction.
+Write the scenarios and their evidence-backed expected answers from the sources during Inventory, before drafting, so the draft cannot shape them; record them in the run record. Before drafting, run each exercise once against the existing reading path and record the result as the baseline; where that reader's cited answer differs from the expected answer, decide whether the old structure fails discovery or the expected answer is wrong before drafting. After drafting, compare the reader's answer with that fixed expected answer. Distinguish failure to find a rule from ambiguity in the rule and from a wrong rule. Fix the pointer before inlining a whole document when discovery is the failure. Rerun affected exercises after correction.
 
 ## Freshness
 
-Compare the recorded source and target revisions. Classify relevant changes by affected topics, not just file overlap: a refactor can move the evidence or change ownership without touching documentation.
+Compare the recorded source and target revisions. Classify relevant changes by affected topics, not just file overlap: a refactor can move the evidence or change ownership without touching documentation. List source documents added or renamed since the baseline, for example `git diff --name-status --diff-filter=AR <baseline>..<target> -- <doc paths>`, and inventory any new guide, glossary file or refactor record before closing the audit.
 
 Record which old rulings still apply, which have been explicitly superseded and which need a new decision. Do not treat an old ruling as universal across changed product concepts. Close the audit against a named target SHA. If upstream cannot be checked, qualify freshness rather than claiming the docs describe current main.
 

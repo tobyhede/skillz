@@ -19,9 +19,13 @@ Record SHAs rather than relying on branch names or “latest”. Update this rec
 
 | Source at revision | Claim | Disposition | Owner / reason |
 | --- | --- | --- | --- |
-| Path, heading or lines; source SHA | One independently decidable obligation | Retained, superseded, redirected, historical, presentation-only, open | Requirement or ruling; explanation for omission |
+| Path and heading or symbol (lines optional); source SHA | One independently decidable obligation | Retained, superseded, redirected, historical, presentation-only, open | Requirement or ruling; explanation for omission |
 
 Split a source paragraph when its obligations have different owners or outcomes. Preserve useful reasons and rejected alternatives that constrain today's design; put their historical narrative in the trace. A source that merely describes a visual duration need not become a behavioural requirement.
+
+Mark each supersession or conflict disposition by basis: source-stated (an accepted ADR or source says so), proposed (an agent's inference) or ruled (a dated maintainer answer); a proposed disposition is not final. On refresh, re-resolve each cited anchor at the new SHA (`git diff <old>..<new> -- <path>`) and reopen claims whose cited text changed.
+
+Triage at document level first: a document with one outcome throughout (superseded in full by a named ADR, out of scope, presentation-only) takes one row. Split into claims only for retained, partly superseded or conflicting material, and batch triage by topic.
 
 ## Requirement evidence
 
