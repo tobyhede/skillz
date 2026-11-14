@@ -1,0 +1,4 @@
+interface:
+  display_name: "Requirements Rewrite"
+  short_description: "Snapshot ADRs into current requirements and keep them in step"
+  default_prompt: "Use $requirements-rewrite to restate this repository’s accepted ADRs as a requirements snapshot, or refresh the existing snapshot against ADRs accepted since its marker."
