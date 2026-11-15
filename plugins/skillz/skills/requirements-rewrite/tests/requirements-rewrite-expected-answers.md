@@ -8,7 +8,7 @@ These rubrics score the forward-test scenarios in [prompts.md](prompts.md). Neve
 - Retains the cancel-all-unfinished rule as binding, since no decision supersedes it; records an implementation gap only if the code contradicts it, and records the coverage gap for running items either way.
 - Assesses whether the cancellation rule applies to the new bulk-import operation from evidence, and raises a decision request with a recommendation if intent is unclear rather than silently extending or excluding it.
 - Classifies the icon change as unrelated or presentation-only and does not reopen topics or add a requirement for it.
-- Records that tests could not run because dependencies are absent, as a limit rather than a pass, and keeps any reusable check it writes somewhere durable.
+- Records that tests could not run because dependencies are absent, as a limit rather than a pass, and includes any reusable check and its fixture tests in the reviewable patch.
 - Uses agents with bounded ownership, inspects each diff and uses an independent final audit, or states honestly that review was sequential.
 - Produces a local reviewable patch only: no product fixes, no publishing.
 
@@ -36,7 +36,31 @@ These rubrics score the forward-test scenarios in [prompts.md](prompts.md). Neve
 
 ## Durable tooling, entry-point pruning and styling
 
-- Moves the link-and-trace check into a durable location within scope, such as the repository or the run record, records its exact command, and removes the run record's dependence on the temporary path.
+- Includes the link-and-trace check and passing/failing fixtures in the repository patch, removes any ignore rule for those paths, records its exact command and results, and removes dependence on the temporary path.
 - Keeps only the universal commit and test constraints in `AGENTS.md`, moves the settings-screen rules to their owning requirements, and leaves a pointer with an explicit trigger.
 - Leaves button colours, spacing and icon choices with code and tests, marking them presentation-only in the source disposition rather than writing requirements for them.
 - Retains requirements for tab order, focus after a dialog closes, save announcements and which preferences persist, each with evidence or an explicit coverage gap.
+
+## Rulings and drafting rules that narrow ADRs
+
+- Flags the drafting rule, guide, implementation evidence and toast ruling as narrowing ADR 0042; none overrides it. Records a new ADR proposal or an open conflict, keeping the accepted rule binding pending acceptance.
+- Gives each ruling a “Changes an ADR?” yes/no classification: yes for the toast, no for the heading rename, with evidence and disposition.
+- Retains the confirmation obligation in ADR 0074’s Costs and records why ADR 0081’s bandwidth prediction is descriptive; does not classify by heading alone.
+- Corrects draft ADR 0154 in place without adding a corrective ADR; preserves existing accepted ADR text and distinguishes draft proposals from accepted decisions.
+
+## ADR visual decisions and cross-rule exceptions
+
+- Leaves the visual values out of requirements prose, cites ADRs 0139 and 0143 on the structural owners, and states in the snapshot contract that omitted ADR detail remains binding.
+- Qualifies the Title universal claim for Images and rebuilds the summary and exceptions from the reconciled rules.
+- Corrects Recovery replay’s scope from the rules, places the definition in the glossary, and replaces the requirements definition with a pointer.
+- Adds or adapts and runs a glossary validator that detects the missing definition despite a mention elsewhere. Checks extraction coverage and requires zero missing terms after correction.
+- Classifies NV-82 as bug: code differs, not not built; does not claim tests passed without execution or implement the product fix.
+- Runs the available local review skill on the complete docs diff, verifies findings against sources, records dispositions, and fixes confirmed defects before cut-over without publishing.
+
+## Archive links and validator delivery
+
+- Rebases the archived link to `../../0139.md#decision` and checks the target and anchor. Preserves the rest of the body and records link rewrites as the sole body change.
+- Makes the forwarding-page removal check detect the other guide’s relative link and exclude the forwarding page’s self-reference; proves both with fixtures.
+- Includes checkers and fixture tests in the local reviewable patch, unignoring their specific paths, without committing or publishing against the request.
+- Exercises passing and failing fixtures for every checker, including quoted parameterized `%s` titles for the evidence checker. Does not treat a resolvable title as proof of assertion coverage.
+- Runs link checks over live and archived documents and records actual results or explicit execution limits.

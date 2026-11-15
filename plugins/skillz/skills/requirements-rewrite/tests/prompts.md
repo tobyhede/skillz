@@ -23,13 +23,13 @@
 - Use the repository’s existing glossary and agent entry-point filenames, including their mirror conventions. Do not introduce a new glossary merely to match a filename assumed by the workflow.
 - Keep only universal constraints in agent entry points; move topic-specific rules to their owning requirements and leave a pointer with an explicit trigger.
 - Account for every inventoried source rule and preserve the distinction between intended behaviour, implemented behaviour and verified test coverage.
-- Keep reusable validators, such as link or trace checks, in a durable location within the authorized scope, such as the repository or the run record, not only a temporary directory.
+- Include reusable validators and passing/failing fixture tests in the repository patch, unignore their specific paths if necessary, and commit them when delivering commits.
 - Retain an unambiguously binding rule when the code differs; record the implementation gap rather than asking the maintainer to approve the same rule again.
 - Resolve genuine intent conflicts with concrete evidence and a recommendation, and keep unresolved decisions explicit while continuing independent work.
 - Keep styling-only treatment with code and tests while retaining requirements for meaning, reachability, focus, announcements and stored state.
 - Inspect delegated diffs and use independent audit and fresh-reader exercises when delegation is available; identify a sequential review honestly when it is not.
 - Classify upstream changes through a named revision and reconcile the affected topics. Do not call a stale but internally consistent draft current.
-- Leave every ADR body unchanged, in place and binding; link each requirement to its source ADRs and route any change to a decision through the ADR process rather than a requirement edit.
+- Leave existing accepted ADR bodies unchanged beyond process-permitted edits, in place and binding; link each requirement to its source ADRs and route any change to a decision through the ADR process rather than a requirement edit.
 - Mark each requirements document as a snapshot with its source SHA, date and highest incorporated ADR, and tell readers that later ADRs bind where they differ.
 - Write into the repository's own entry points and workflow guide the new reading order and the obligation that an accepted ADR updates the owning requirement, since the domain-modeling skills read `CONTEXT.md` and ADRs directly. Do not edit those skills.
 - Keep `CONTEXT.md` a glossary: add terms coined during the rewrite there and move behaviour out of it, without redefining terms in the requirements.
@@ -72,3 +72,21 @@ Raw artifacts: the repository has `AGENTS.md`, `CONTEXT.md` and a `docs/agents/d
 User request: “Consolidate our UI design records into requirements and leave the repository ready for the next refresh.”
 
 Raw artifacts: a previous session wrote a link-and-trace check script to a temporary directory, and the run record cites only that temporary path. `AGENTS.md` holds universal commit and test constraints alongside a dozen product rules about the settings screen. The UI guide mixes button colours, spacing and icon choices with rules for tab order, focus after a dialog closes, screen-reader announcements on save, and which preferences persist across sessions.
+
+### Rulings and drafting rules that narrow ADRs
+
+User request: “Finish reconciling the UI requirements with our ADRs. Keep unresolved decisions visible.”
+
+Raw artifacts: accepted ADR 0042 says every permanent rejection opens a dialog and takes focus. A drafting rule says focus behaviour belongs only in tests. A guide says rejection is a toast; code and its test implement the toast. A maintainer ruling says “keep the toast.” Another ruling renames a heading without changing behaviour. ADR 0074’s Costs section says removal asks for confirmation when Edges would go; ADR 0081’s Consequences says retrying may consume more bandwidth. Both passages are omitted from the draft trace. ADR 0154 was created in this rewrite, is unmerged and still a draft; its rejection wording needs correction.
+
+### ADR visual decisions and cross-rule exceptions
+
+User request: “Audit the rendering requirements and glossary before cut-over.”
+
+Raw artifacts: accepted ADR 0139 decides the focus ring colour; ADR 0143 decides lane gaps. The requirements retain the focusable structure and lane structure but omit those details and ADR citations. One rule says every kind draws a Title; another says an Image draws none. The summary repeats the universal claim. A Terms entry defines Recovery replay as replaying all work, while a rule excludes completed work. `CONTEXT.md` mentions Recovery replay in another definition but has no definition for it. NV-82 is marked not built; an existing navigation code path implements it with the wrong focus destination. A session review skill is available; no external publication is authorized.
+
+### Archive links and validator delivery
+
+User request: “Prepare the guide archive and checks for local review. Do not publish or commit yet.”
+
+Raw artifacts: `docs/agents/ui.md` links to `../adr/0139.md#decision`; its archive destination is `docs/adr/archive/agent-guides/ui.md`. Another guide links to `../agents/ui.md`. The forwarding page contains its own old path, and its removal command searches only for the literal string `docs/agents/ui.md`. Checkers live under ignored `.scratch/`; none has fixtures. An evidence checker accepts a literal quoted test title but fails to resolve the citation for `test.each(cases)('rejects %s', ...)`.

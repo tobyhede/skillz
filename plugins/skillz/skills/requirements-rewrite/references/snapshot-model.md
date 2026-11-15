@@ -15,7 +15,8 @@ Read this in Baseline, before drafting the snapshot marker, and before the final
 
 ADRs are the historical authority. Accepted ADRs stay binding, append-only and in place; the repository keeps writing new ones after the rewrite. The requirements are a snapshot: a restatement, in current words, of what the accepted ADRs and other sources decide as of one recorded revision. They decide nothing themselves.
 
-- Never archive, merge, rewrite, renumber or mark ADRs non-binding as part of this workflow. The only ADR edits allowed are those the repository's ADR process already permits, such as a status line.
+- Preserve existing accepted ADRs: do not archive, merge, rewrite, renumber or mark them non-binding. Only make edits their ADR process permits, such as a status line.
+- ADRs created during the rewrite remain drafts until merge. Correct those drafts in place rather than stacking corrective ADRs; identify them as proposed decisions until accepted through the repository’s process. This exception does not permit rewriting existing accepted ADRs.
 - A requirement cannot override an accepted ADR. When the rewrite finds a disagreement it cannot settle from the sources, surface it; a resolution that changes what an ADR decides is a new ADR written through the repository's process, not a requirement edit.
 - When the user asks to "replace" or "retire" the ADRs, explain this model. If they still want ADR authority retired, do not archive or demote any ADR: record the request as an open decision for the repository's ADR process, and continue only with work that leaves the ADRs binding.
 - A maintainer ruling that settles which accepted source holds, or records detail no ADR states, without changing what any ADR decides, goes into the owning requirement with its date and into the topic's source inventory. A ruling that changes what an ADR decides, or one the ADR process requires recording, is a new ADR.
@@ -26,11 +27,11 @@ Each requirements document states, near its top, the point it was taken at:
 
 - The source commit SHA and date the restatement was checked against. A commit cannot name itself, so record the base commit the change was made on; when the requirement is updated in the same change as an ADR, the ADR number is the reliable key.
 - The highest ADR number incorporated, or the explicit list of source ADRs for the topic, including any that were reviewed and found not to apply.
-- A one-line rule for readers: ADRs accepted after this point bind where they differ, until the requirements are updated.
+- A snapshot contract: accepted ADRs remain binding, including visual detail omitted from the requirements. Later accepted ADRs bind where they differ until the requirements are updated.
 
 For example:
 
-> Snapshot: checked against `abc1234` (2026-11-01); incorporates ADRs through 0120. ADRs accepted after 0120 bind where they differ, until this document is updated.
+> Snapshot: checked against `abc1234` (2026-11-01); incorporates ADRs through 0120. Accepted ADRs remain binding, including visual detail omitted here. ADRs accepted after 0120 bind where they differ, until this document is updated.
 
 A rule entry under that marker then reads, for example:
 

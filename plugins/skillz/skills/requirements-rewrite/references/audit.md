@@ -29,7 +29,13 @@ Check especially:
 - Glossary entries carry an operational policy that can drift from its owner.
 - A rationale asserts an unverified mechanism, such as how an exception affects the UI.
 
+Scan every “every”, “never”, “all” and “only” claim against the other rules and their exceptions, within and across documents. Qualify a universal claim at its owner when an exception applies; for example, “every kind draws a Title” must account for an Image rule that draws none. Rebuild summaries, Exceptions and Terms sections from the reconciled rules, checking their scopes and definitions rather than carrying old prose forward. Terms sections should point to glossary definitions, not introduce parallel definitions.
+
 Verify code and assertions directly; an author's or subagent's summary is not evidence by itself. Return findings with the scenario, affected rule, source evidence and consequence.
+
+## Automated review
+
+Before cut-over, run the repository’s review bot or an available session review skill on the complete documentation diff when either is available. Use a local review skill when invoking a bot would require publication outside the task’s authorization. Verify every finding against the sources and reviewed revision, record its disposition, fix confirmed defects, and rerun affected checks. Record the reviewer, revision, results and any access or execution limit; an unavailable review is not a pass.
 
 ## Fresh-reader exercises
 
@@ -48,5 +54,9 @@ Record which old rulings still apply, which have been explicitly superseded and 
 ## Mechanical evidence
 
 Use existing validators where available. Check rule definitions and references, duplicate identifiers, removed-rule references, links and anchors, archive integrity, agent-file mirrors or symlinks, and the complete proposed diff's whitespace.
+
+Add or adapt a glossary validator to the repository’s actual Markdown conventions. It must enumerate terms defined in requirements (including inline definitions and Terms sections), compare them with definition entries in `CONTEXT.md` or the repository’s glossary, and report missing terms with source locations; a mention alone is not a glossary definition. Inspect extraction coverage so a zero count cannot result from matching no definitions. Move definitions to the glossary and link them from requirements, then require zero missing terms before completion.
+
+Track every validator and its tests in version control, unignoring their specific paths where necessary. Document inputs, outputs, dependencies and failure behaviour, and give each validator a small fixture test with a passing case and a deliberately failing case. Include the actual syntax it checks: glossary inline definitions, moved relative links and, for evidence checkers, `%s` in quoted parameterized test titles. Run the fixtures and validators against the proposed tree, recording both results.
 
 Read validators before relying on them. Repeated IDs in a Bugs section may be references rather than definitions; historical references may need explicit exemptions. Keep exemptions narrow and visible. These checks establish structural consistency, not semantic completeness.
