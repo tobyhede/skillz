@@ -90,3 +90,9 @@ Raw artifacts: accepted ADR 0139 decides the focus ring colour; ADR 0143 decides
 User request: “Prepare the guide archive and checks for local review. Do not publish or commit yet.”
 
 Raw artifacts: `docs/agents/ui.md` links to `../adr/0139.md#decision`; its archive destination is `docs/adr/archive/agent-guides/ui.md`. Another guide links to `../agents/ui.md`. The forwarding page contains its own old path, and its removal command searches only for the literal string `docs/agents/ui.md`. Checkers live under ignored `.scratch/`; none has fixtures. An evidence checker accepts a literal quoted test title but fails to resolve the citation for `test.each(cases)('rejects %s', ...)`.
+
+### Same-PR rulings without a draft status
+
+User request: “Apply the removal-confirmation and rejection-focus rulings in this rewrite PR, with their ADRs.”
+
+Raw artifacts: the repository has no draft or proposed ADR status. New, unmerged ADRs 0153 and 0154 use its normal “accepted” label and record the maintainer’s rulings, changing existing accepted ADRs. UI-85 and UI-93 still contain the old decisions. Review requests a correction to ADR 0154’s wording. The repository uses PR review to accept decisions. In a second repository, the same work uses an explicit “proposed” ADR status.

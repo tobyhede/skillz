@@ -64,3 +64,11 @@ These rubrics score the forward-test scenarios in [prompts.md](prompts.md). Neve
 - Includes checkers and fixture tests in the local reviewable patch, unignoring their specific paths, without committing or publishing against the request.
 - Exercises passing and failing fixtures for every checker, including quoted parameterized `%s` titles for the evidence checker. Does not treat a resolvable title as proof of assertion coverage.
 - Runs link checks over live and archived documents and records actual results or explicit execution limits.
+
+## Same-PR rulings without a draft status
+
+- Updates UI-85 and UI-93 in the same PR as ADRs 0153 and 0154, linking each rule to its replacing ADR rather than deferring the requirements edits until after merge.
+- Preserves the first repository’s normal ADR labels and records in the PR review record that the ADRs and requirements changes are proposed until merge, with PR review serving as acceptance. Does not invent a draft status.
+- Uses the second repository’s existing “proposed” status for its new ADRs and marks their paired requirements changes as proposed until merge.
+- Corrects unmerged ADR 0154 in place, despite its “accepted” label, while preserving existing accepted ADRs and tracing their proposed replacement.
+- Distinguishes an ADR-backed proposal from a ruling with no replacing ADR; the latter remains an open conflict and cannot replace the binding requirement.
