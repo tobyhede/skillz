@@ -26,6 +26,8 @@ Split a source paragraph when its obligations have different owners or outcomes.
 
 Mark each supersession or conflict disposition by basis: source-stated (an accepted ADR or source says so), proposed (an agent's inference) or ruled (a dated maintainer answer); a proposed disposition is not final. On refresh, re-resolve each cited anchor at the new SHA (`git diff <old>..<new> -- <path>`) and reopen claims whose cited text changed.
 
+Distinguish whole-ADR supersession from partial refinement. Record the exact claims and scopes a successor replaces; retain the predecessor’s unaffected obligations and their source citations. A successor link or later ADR number alone does not establish whole-document supersession. If a status label implies full replacement but the decision text changes only part, record the ambiguity as an open conflict rather than silently dropping the rest. When using a catalogue or selecting ADRs for a topic, include predecessors whose obligations still apply.
+
 Triage at document level first: a document with one outcome throughout (superseded in full by a named ADR, out of scope, presentation-only) takes one row. Split into claims only for retained, partly superseded or conflicting material, and batch triage by topic.
 
 ## Requirement evidence

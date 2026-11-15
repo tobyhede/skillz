@@ -72,3 +72,13 @@ These rubrics score the forward-test scenarios in [prompts.md](prompts.md). Neve
 - Uses the second repository’s existing “proposed” status for its new ADRs and marks their paired requirements changes as proposed until merge.
 - Corrects unmerged ADR 0154 in place, despite its “accepted” label, while preserving existing accepted ADRs and tracing their proposed replacement.
 - Distinguishes an ADR-backed proposal from a ruling with no replacing ADR; the latter remains an open conflict and cannot replace the binding requirement.
+
+## Partial refinement and future ADR creation
+
+- Updates the confirmation rule from ADR 0030 while preserving ADR 0020’s cancellation-focus obligation and citation. Records which claim was replaced and retains 0020 in the relevant topic selection.
+- Flags the second chain’s conflicting status and decision text as an open conflict; does not infer that the untouched obligation has disappeared.
+- Documents the three-part creation threshold in the repository workflow: meaningful reversal cost, surprise without context, and a genuine trade-off.
+- Routes the pure rename to the glossary and affected terminology references, and the ungoverned spacing adjustment to its code owner; neither alone warrants a new ADR under that threshold.
+- Offers an ADR for the cross-context ownership decision, without inventing which alternative the maintainer chose.
+- Preserves the existing UI ADR despite its cheap reversal cost and routes the proposed change through the ADR process. Does not use the future creation threshold to bypass existing authority.
+- If the repository instead has an explicit different creation threshold, preserves it or surfaces a conflict rather than silently imposing the domain-modeling threshold.
