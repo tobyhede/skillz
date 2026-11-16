@@ -319,7 +319,7 @@ Add `#[instrument(...)]` to every handler for tracing. Skip sensitive extractors
 
 ```rust
 // Standard pattern — err + ret, skip db/auth/request bodies
-#[instrument(err, ret, skip(db, auth))]
+#[instrument(err, ret, skip(db, auth, request))]
 pub async fn create(
     ForWorkspace(workspace_id): ForWorkspace,
     WriteDb(db): WriteDb,

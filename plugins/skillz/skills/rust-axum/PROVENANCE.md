@@ -10,11 +10,12 @@ This skill is adapted from the Axum service conventions skill in the CipherStash
 
 ## Local changes
 
-Upstream ships only `SKILL.md`. Its guidance is unchanged; the edits below are layout and renamed identifiers.
+Upstream ships only `SKILL.md`. Its guidance is unchanged; the edits below are layout, renamed identifiers, and two example fixes.
 
 - `SKILL.md`: the OpenAPI section moved to `references/openapi.md` (the skillz contract caps `SKILL.md` at 500 lines), leaving a short summary that links to it. Its `###` headings became `##` and a table of contents was added.
 - Company-specific identifiers in examples are renamed: crate paths in comments (`domain/`, `web/`), the config type (`Config`), a permission type, the workspace header (`x-workspace-id`), the JWT security scheme name (`jwt`), the API title, an example endpoint host (`api.example.com`), and the OpenAPI docs env var. The intro to the extractor list no longer says "in this codebase".
-- `references/openapi.md`: the moved OpenAPI section, with the renames above.
+- `SKILL.md`: the standard `#[instrument]` example now skips `request`, matching its own rule to always skip request bodies.
+- `references/openapi.md`: the moved OpenAPI section, with the renames above. `build_api_doc` also registers the `jwt` security scheme that the handler examples reference.
 - `tests/prompts.md`: added for the skillz behavior-case contract.
 - `PROVENANCE.md`: this file.
 

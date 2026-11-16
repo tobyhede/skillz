@@ -221,6 +221,12 @@ pub(crate) fn build_api_doc(state: AppState) -> anyhow::Result<OpenApi> {
             .build())
         .components(Some(
             ComponentsBuilder::new()
+                .security_scheme("jwt", SecurityScheme::Http(
+                    HttpBuilder::new()
+                        .scheme(HttpAuthScheme::Bearer)
+                        .bearer_format("JWT")
+                        .build(),
+                ))
                 .security_scheme("access_key", SecurityScheme::Http(
                     HttpBuilder::new().scheme(HttpAuthScheme::Bearer).build(),
                 ))
