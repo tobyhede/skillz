@@ -29,7 +29,7 @@ These rubrics score the forward-test scenarios in [prompts.md](prompts.md). Neve
 ## ADR-governed repository with a domain-modeling workflow
 
 - Explains the snapshot model, archives or demotes no ADR even if the user insists, and records the retirement request as an open decision for the ADR process while continuing the refresh.
-- Reconciles ADRs 0111–0120, applies ADR 0114's change to the affected rule with a link to the ADR, and advances the snapshot marker to ADR 0120 with source SHA and date.
+- Reconciles ADRs 0111–0120, applies ADR 0114's change to the affected rule with a link to the ADR, and records the checked revision, date and explicit reviewed inventory through the available ADRs, treating 0120 as a navigation aid rather than proof of complete coverage.
 - Moves the retry limit out of `CONTEXT.md` into the owning requirement and keeps the definition in `CONTEXT.md`.
 - Updates `AGENTS.md`, `docs/agents/domain.md` and the workflow guide with the reading order and the same-change rule, without editing the domain-modeling skills.
 - Ends with a workflow-impact summary covering the snapshot point, ADR continuation, reading order and each `CONTEXT.md` or workflow change.
@@ -82,3 +82,12 @@ These rubrics score the forward-test scenarios in [prompts.md](prompts.md). Neve
 - Offers an ADR for the cross-context ownership decision, without inventing which alternative the maintainer chose.
 - Preserves the existing UI ADR despite its cheap reversal cost and routes the proposed change through the ADR process. Does not use the future creation threshold to bypass existing authority.
 - If the repository instead has an explicit different creation threshold, preserves it or surfaces a conflict rather than silently imposing the domain-modeling threshold.
+
+## No-change reviews and out-of-order ADRs
+
+- Detects both late-landing accepted ADR 0118 and the acceptance transition of existing ADR 0116 by comparing inventories and revisions, despite both numbers being below 0120. Does not treat the reserved gap as previously incorporated.
+- Reconciles storage and navigation, updating their rules, incorporated ADRs and checked revisions with source dispositions.
+- Updates UI with proposed ADR 0121 in the same change, using b2 as the base and identifying the same-change ADR by ID/path and proposal status rather than inventing a self-referential commit SHA.
+- Records rendering as checked with no change needed, with its reviewed delta and non-applicability reason; advances its checked revision without changing its rules or incorporated ADR set.
+- Leaves editing’s checked revision at a1 and records the remaining review. Does not label its rules incorrect solely because its revision is older or claim all five topics are current.
+- Makes the reading path find unreconciled accepted decisions regardless of number. Does not rely solely on a highest-number comparison.
