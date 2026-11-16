@@ -6,24 +6,35 @@ user-invocable: false
 
 # Axum Service Development
 
-When building Axum HTTP services, follow these conventions to produce consistent, observable, and
-well-structured web applications.
+Conventions for changing an Axum HTTP service without changing its wire behavior, widening its
+access boundary, or leaking request data into logs. The examples target Axum 0.8, axum-extra
+0.10, tower-http 0.6, and tracing 0.1. Check signatures against the versions in the project's
+`Cargo.lock`, and treat a dependency upgrade as a separate change.
 
-## RESTful Routes & TypedPath
+## Before you change an endpoint
 
-Use `axum_extra::routing::TypedPath` for compile-time route checking. Define routes as unit or tuple
-structs with `#[typed_path("/path")]`.
+1. Find where the route is actually mounted: which router, what is registered before and after
+   it, and which layers wrap it. See [Middleware and layer placement](#middleware-and-layer-placement).
+2. Read the existing request and response contract: content type, rejection statuses and
+   bodies, error shape, and any compatibility aliases. Preserve it unless the task is to change it.
+3. Identify what the endpoint authorizes beyond "a caller is authenticated". See
+   [State, extensions, and authorization](#state-extensions-and-authorization).
+4. Find the existing tests for the route, and plan a test that drives the mounted router. See
+   [Testing](#testing).
+
+## RESTful routes and TypedPath
+
+Use `axum_extra::routing::TypedPath` for compile-time checked routes and links. Define routes as
+unit or field structs with `#[typed_path("/path")]`.
 
 ```rust
 use axum_extra::routing::TypedPath;
 use serde::Deserialize;
 
-// Unit struct for routes with no parameters
 #[derive(Debug, TypedPath, Deserialize)]
 #[typed_path("/oauth/device/token")]
 pub struct DeviceTokenPath;
 
-// Struct with parameters for dynamic routes
 #[derive(Debug, TypedPath, Deserialize)]
 #[typed_path("/oauth/device/confirm/{user_code}")]
 pub struct ConfirmPath {
@@ -31,408 +42,213 @@ pub struct ConfirmPath {
 }
 ```
 
-Use `.to_uri()` for building redirect URLs and `state.url_for(path)` for full URL construction:
+Build links from the typed path rather than from strings:
 
 ```rust
-// Redirect using TypedPath — compile-time checked route
-let dest = ActivatePath
-    .with_query_params(user_code_param)
-    .to_uri()
-    .to_string();
+let dest = ActivatePath.with_query_params(user_code_param).to_uri().to_string();
 Redirect::to(&dest)
 
-// Full URL from state — uses base_url + typed path
-let callback_url = state.url_for(PkceCallbackPath)?;
+let callback_url = state.url_for(PkceCallbackPath)?; // base URL + typed path
 ```
 
-Register typed routes with `.typed_get()` / `.typed_post()` on the router:
+Register typed routes with `.typed_get()` / `.typed_post()`, and simple ones with `.route()`:
 
 ```rust
 let router = Router::new()
     .typed_post(oauth::device::token)
     .typed_get(oauth::device::activate)
-    .typed_post(oauth::pkce::start)
-    // Standard routes for simpler cases
     .route("/health", get(async || StatusCode::OK))
-    .route("/workspaces", get(workspace::list))
-    .route("/workspaces", post(workspace::create));
+    .route("/workspaces", get(workspace::list).post(workspace::create));
 ```
 
 Rules:
 - RESTful naming: plural nouns (`/workspaces`, `/memberships`), standard HTTP methods
-- TypedPath handler's first parameter is the path struct (e.g. `_: DeviceTokenPath`)
-- Use `.to_uri()` for redirects — never hardcode route strings
-- `state.url_for(path)` for absolute URLs (e.g. OAuth callbacks, email links)
-- `state.path_for(path)` when you only need the path segment without the base URL
+- A TypedPath handler's first parameter is the path struct (e.g. `_: DeviceTokenPath`)
+- Build redirects with `.to_uri()` and absolute URLs with a helper such as `state.url_for(path)`;
+  never hardcode route strings
+- A path parameter's value appears in the request URI. Anything that logs the URI logs it; see
+  [Tracing](#tracing)
+- Documented handlers may be mounted with utoipa's `routes!` while still using `TypedPath` for
+  extraction; see [references/openapi.md](references/openapi.md)
 
-## Error Handling — Layered Pattern
+## Errors and responses
 
-Structure errors in three tiers:
+Keep detailed domain errors where they help diagnosis, and decide at the HTTP boundary what the
+client sees. The boundary mapping must preserve the contract clients rely on: status code,
+headers, content type, and any machine-readable fields such as an OAuth `error` code.
 
-### 1. Domain errors — granular, internal
+### Domain errors
 
-Fine-grained `thiserror` enums listing every possible failure. These live in domain crates and are
-never exposed directly to HTTP clients.
+Fine-grained `thiserror` enums with `#[from]` for upstream errors:
 
 ```rust
-// domain/src/oauth/mod.rs
 #[derive(Debug, thiserror::Error)]
 pub enum DeviceAuthRequestError {
-    #[error("Failed to generate user code: {0}")]
+    #[error("failed to generate user code: {0}")]
     UserCodeGenerationFailed(#[from] RandomError),
 
-    #[error("Missing config: {0}")]
+    #[error("missing config: {0}")]
     ConfigMissing(String),
 
-    #[error("Storage error: {0}")]
+    #[error("storage error: {0}")]
     StorageError(#[from] DeviceCodeError),
 }
 ```
 
-### 2. User-facing errors — coarse, safe for HTTP
+### Mapping at the boundary
 
-Fewer variants with `IntoResponse` and status code mapping. These are what clients see.
+Map each domain variant to what the client needs to know. Infrastructure faults usually collapse
+to a generic 500 with the detail logged; a client-actionable failure keeps a status and code the
+client can act on. Do not erase every variant into one response by reflex, and do not leak
+internal messages, paths, or stack traces.
 
 ```rust
-// domain/src/oauth/error.rs
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum Error {
-    #[error("An invalid request was made")]
+#[derive(Debug, Clone, Serialize, thiserror::Error)]
+#[serde(tag = "error", rename_all = "snake_case")]
+pub enum OAuthError {
+    #[error("invalid request")]
     InvalidRequest,
-
-    #[error("The client ID is invalid or not authorized")]
-    InvalidClient,
-
-    #[error("An internal error occurred")]
+    #[error("authorization pending")]
+    AuthorizationPending,
+    #[error("server error")]
     ServerError,
 }
 
-impl Error {
-    pub fn status_code(&self) -> StatusCode {
-        match self {
-            Self::InvalidRequest | Self::InvalidClient => StatusCode::BAD_REQUEST,
-            Self::ServerError => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-}
-```
-
-### 3. Conversion — erase details, log internally
-
-`From<DomainError> for UserError` maps granular errors to coarse ones.
-Use `inspect_err` + `tracing::error!` to preserve internal observability.
-
-```rust
-// Domain error → user-facing error (detail erasure)
-impl From<DeviceAuthRequestError> for oauth::Error {
-    fn from(_: DeviceAuthRequestError) -> Self {
-        oauth::Error::ServerError
-    }
-}
-
-// In handlers — inspect_err for logging, map_err for user-facing response
-let claims = verify_service_token(token, &auth.jwk_manager())
-    .await
-    .inspect_err(|e| tracing::warn!("{e}"))
-    .map_err(|_| AuthError::Unauthorized("Unauthorized"))?;
-```
-
-Rules:
-- Domain errors are detailed and include `#[from]` for upstream errors
-- User-facing errors are coarse — never leak internal details, paths, or stack traces
-- `From` conversions always erase details (use `_` for the source error)
-- `inspect_err` logs the real error; `map_err` returns a generic one to the client
-
-## IntoResponse for Error Types
-
-Implement `IntoResponse` only on user-facing error types. Map variants to status codes and serialize
-as JSON.
-
-```rust
-impl IntoResponse for Error {
-    fn into_response(self) -> Response {
-        (self.status_code(), Json(self)).into_response()
-    }
-}
-```
-
-For domain errors from other crates that need `IntoResponse` in the web layer, use the
-`ErrorResponse<T>` newtype wrapper:
-
-```rust
-// web/src/lib.rs — wraps external error types for IntoResponse
-#[derive(Debug)]
-pub struct ErrorResponse<T>(T);
-```
-
-For auth middleware errors that don't need JSON bodies, use tuple responses:
-
-```rust
-#[derive(Debug)]
-pub(crate) enum AuthError {
-    Unauthorized(&'static str),
-    BadRequest(&'static str),
-    Internal,
-}
-
-impl IntoResponse for AuthError {
-    fn into_response(self) -> Response {
-        match self {
-            AuthError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg).into_response(),
-            AuthError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg).into_response(),
-            AuthError::Internal => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
+impl From<DeviceAuthRequestError> for OAuthError {
+    fn from(err: DeviceAuthRequestError) -> Self {
+        match err {
+            // Every variant here is an internal fault, so all map to server_error. A
+            // client-caused variant (bad code, expired code) would map to its own OAuth code.
+            DeviceAuthRequestError::ConfigMissing(_)
+            | DeviceAuthRequestError::UserCodeGenerationFailed(_)
+            | DeviceAuthRequestError::StorageError(_) => {
+                tracing::error!(error = %err, "device authorization failed");
+                OAuthError::ServerError
             }
         }
     }
 }
+
+impl IntoResponse for OAuthError {
+    fn into_response(self) -> Response {
+        let status = match self {
+            Self::InvalidRequest | Self::AuthorizationPending => StatusCode::BAD_REQUEST,
+            Self::ServerError => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        (status, Json(self)).into_response()
+    }
+}
+```
+
+In handlers, log the real error and return the mapped one. Log the error's `Display` only when
+you know it cannot contain credentials or request values:
+
+```rust
+let claims = verify_service_token(token, &auth.jwk_manager())
+    .await
+    .inspect_err(|e| tracing::warn!(error = %e, "service token rejected"))
+    .map_err(|_| AuthError::Unauthorized)?;
 ```
 
 Rules:
-- Only user-facing error types implement `IntoResponse`
-- Domain errors never implement `IntoResponse` directly
-- JSON errors: `(status, Json(self)).into_response()`
-- Plain text errors: `(status, message).into_response()`
-- Use `ErrorResponse<T>` to bridge external domain errors into the web layer
+- A handler returning `Result<T, E>` where `E: IntoResponse` always produces an HTTP response;
+  the mapping in `IntoResponse` is the contract, so review it before changing it
+- A domain error may implement `IntoResponse` when its mapping is the boundary contract; when the
+  type lives in another crate, wrap it in a local newtype (e.g. `ErrorResponse<T>`)
+- Keep distinctions clients or operators need, such as a rejected credential (401) versus a
+  verification backend being unavailable (503)
+- JSON errors: `(status, Json(body)).into_response()`; plain text: `(status, msg).into_response()`
+- Tower middleware that returns a service error (timeouts, load shedding) needs
+  `HandleErrorLayer` or an equivalent outer handler to turn it into a response
 
-## JSON Responses
+## Extracting requests
 
-Use `JsonResponse<T>` for consistent JSON responses with status code control. Use `JsonResult<T, E>`
-as the handler return type.
+Extractors run left to right. `FromRequestParts` extractors (state, headers, path, identity) come
+first; exactly one body-consuming `FromRequest` extractor comes last.
+
+### Request bodies
+
+Use Axum's `Json<T>` or `Form<T>`, or the endpoint's existing wrapper, so a bad request gets the
+standard rejection: 415 for a wrong content type, 400 for malformed syntax, 422 for valid JSON
+with the wrong shape, and 413 over the body limit.
+
+Never buffer the body to log it, and never log a deserializer error's full text: both can contain
+credentials or other submitted values, and buffering before the extractor reads the body defeats
+the streaming body limit. Log a classification of the rejection instead.
 
 ```rust
-// Type alias for handler returns
-pub type JsonResult<T, E> = Result<JsonResponse<T>, E>;
+// GOOD — native extraction, safe diagnostics
+pub async fn create(
+    State(state): State<AppState>,
+    payload: Result<Json<CreateRequest>, JsonRejection>,
+) -> Result<JsonResponse<CreateResponse>, ApiError> {
+    // ApiError: From<JsonRejection> keeps the standard status and message
+    let Json(request) = payload.inspect_err(|rejection| {
+        tracing::info!(status = %rejection.status(), "rejected JSON body");
+    })?;
+    // ...
+}
 
-// In handlers — return JsonResponse with optional status
+// GOOD — a project wrapper delegates to Json exactly once
+impl<T, S> FromRequest<S> for AppJson<T>
+where
+    T: DeserializeOwned,
+    S: Send + Sync,
+{
+    type Rejection = JsonRejection;
+
+    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+        Json::<T>::from_request(req, state).await.map(|Json(v)| AppJson(v))
+    }
+}
+
+// BAD — reads the whole body before the limit applies, logs it, and panics on a read error
+let bytes = buffer_and_print("request", body).await.unwrap();
+```
+
+When a protocol defines its own rejection body (OAuth expects a 400 with an `error` field for a
+malformed form), keep it with `axum_extra::extract::WithRejection`:
+
+```rust
 pub async fn token(
     _: DeviceTokenPath,
     State(state): State<AppState>,
-    WriteDb(db): WriteDb,
-    Form(request): Form<DeviceTokenRequest>,
-) -> JsonResult<DeviceTokenResponse, oauth::Error> {
-    // ...
-    Ok(JsonResponse::new(DeviceTokenResponse {
-        access_token: signed.token,
-        token_type: "Bearer",
-        expires_in,
-    }))
-}
-
-// Override the default 200 status
-JsonResponse::new(response).with_status(StatusCode::CREATED)
+    WithRejection(Form(request), _): WithRejection<Form<DeviceTokenRequest>, OAuthFormRejection>,
+) -> Result<JsonResponse<DeviceTokenResponse>, OAuthError> { ... }
 ```
 
-For error messages, use the `json_error_message` helper:
+Replacing such an extractor with plain `Form<T>` changes the wire contract.
+
+### Custom extractors
+
+Prefer a named extractor over `Extension<T>` in handler signatures: it states the dependency,
+documents its rejection, and is reusable.
 
 ```rust
-JsonResponse::new(json_error_message("Failed to get a connection from the pool"))
-    .with_status(StatusCode::INTERNAL_SERVER_ERROR)
-```
-
-## Extractors Over Extensions
-
-Use custom `FromRequest` / `FromRequestParts` implementations instead of `Extension<T>`. Extensions
-are not statically checked — a missing extension silently causes a runtime error.
-
-```rust
-// GOOD — custom extractor, statically checked
 pub struct ReadDb(pub PgConn);
 
 impl FromRequestParts<AppState> for ReadDb {
-    type Rejection = JsonResponse<ErrorMessage<'static>>;
+    type Rejection = ApiError;
 
-    async fn from_request_parts(
-        _parts: &mut Parts,
-        state: &AppState,
-    ) -> Result<Self, Self::Rejection> {
-        let dual_pool = DualPool::from_ref(state);
-        PgConn::checkout(dual_pool.for_read())
-            .await
-            .map_err(pool_get_failed)
-            .map(ReadDb)
+    async fn from_request_parts(_parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+        let pool = DualPool::from_ref(state);
+        PgConn::checkout(pool.for_read()).await.map(ReadDb).map_err(ApiError::pool_unavailable)
     }
 }
-
-// GOOD — role-based access via extractor
-pub struct WorkspaceRole<S = ()>(pub WorkspaceId, pub S);
-
-// BAD — Extension is not statically verified
-async fn handler(Extension(db): Extension<PgConn>) -> ... { }
 ```
 
-Typical extractor set for a service:
-- `ReadDb` / `WriteDb` — database connections from read-replica or primary pool
-- `BearerToken` — extracts the `Authorization: Bearer <token>` header
-- `ForWorkspace` — extracts workspace ID from the authenticated user
-- `WorkspaceRole<AdminRole>` — workspace ID with role enforcement
-- `HasPermission<P>` — generic permission check via `PermissionCheck` trait
-- `AuthN` — extracts the `Authorization` instance from state
+An extractor that reads an extension written by middleware is still only as good as the
+middleware wiring: it must reject cleanly when the extension is missing, and the route must be
+inside the layer that writes it.
 
-## Handle Request Parsing Safely
+## State, extensions, and authorization
 
-Never destructure `Json<T>` directly in handler parameters — deserialization errors produce poor
-default responses. Use `StrictJson<T>` or handle the rejection explicitly.
-
-```rust
-// GOOD — StrictJson logs deserialization errors
-pub struct StrictJson<T>(pub T);
-
-impl<T, S> FromRequest<S> for StrictJson<T>
-where
-    T: DeserializeOwned + Debug,
-    S: Send + Sync,
-{
-    type Rejection = <Json<T> as FromRequest<S>>::Rejection;
-
-    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        let (parts, body) = req.into_parts();
-        let bytes = buffer_and_print("request", body).await.unwrap();
-        let req = Request::from_parts(parts, Body::from(bytes));
-
-        Json::<T>::from_request(req, state)
-            .await
-            .map(|Json(value)| StrictJson(value))
-            .inspect_err(|err| {
-                tracing::error!("Failed to deserialize JSON: {}", err);
-            })
-    }
-}
-
-// GOOD — Form extraction with typed path
-pub async fn token(
-    _: DeviceTokenPath,
-    State(state): State<AppState>,
-    WriteDb(db): WriteDb,
-    Form(request): Form<DeviceTokenRequest>,
-) -> JsonResult<DeviceTokenResponse, oauth::Error> { ... }
-```
-
-Rules:
-- Use `StrictJson<T>` instead of `Json<T>` for request bodies
-- Always log deserialization failures — they indicate client bugs or attacks
-- For form data, `Form<T>` is fine as-is since form parsing errors are less ambiguous
-
-## Handler Instrumentation
-
-Add `#[instrument(...)]` to every handler for tracing. Skip sensitive extractors.
-
-```rust
-// Standard pattern — err + ret, skip db/auth/request bodies
-#[instrument(err, ret, skip(db, auth, request))]
-pub async fn create(
-    ForWorkspace(workspace_id): ForWorkspace,
-    WriteDb(db): WriteDb,
-    AuthN(auth): AuthN,
-    StrictJson(request): StrictJson<CreateRequest>,
-) -> JsonResult<CreateResponse, Error> { ... }
-
-// skip_all with explicit fields — for handlers with many params
-#[instrument(err, ret, skip_all, fields(member_id = %user.id, external_id = %user.external_id))]
-pub async fn delete(
-    Extension(user): Extension<Arc<User>>,
-    WriteDb(db): WriteDb,
-    Path(params): Path<DeleteParams>,
-) -> Result<impl IntoResponse, Error> { ... }
-
-// Middleware — skip_all is required (no useful params to log)
-#[instrument(err(Debug), skip_all)]
-pub(crate) async fn auth_middleware(
-    State(app): State<AppState>,
-    req: Request,
-    next: Next,
-) -> Result<impl IntoResponse, AuthError> { ... }
-
-// Light handlers — skip specific param, add fields
-#[instrument(ret, skip(user_code_param), fields(user_code = ?user_code_param.user_code))]
-pub async fn activate_submit(
-    _: ActivatePath,
-    Form(user_code_param): Form<UserCodeParam>,
-) -> Redirect { ... }
-```
-
-Rules:
-- `err` — logs the error if the handler returns `Err`
-- `ret` — logs the return value (works with `TracedResponse` which redacts contents)
-- `skip(db, auth, conn, request)` — always skip database connections, auth objects, and request bodies
-- `skip_all` + `fields(...)` — when there are many params or you need to control exactly what's logged
-- `err(Debug)` — for middleware where the error type's `Debug` is more useful than `Display`
-
-## Middleware Patterns
-
-Use `axum::middleware::from_fn_with_state` for middleware that needs access to application state.
-Use `.route_layer()` for scoped middleware and `.layer()` for global middleware.
-
-```rust
-// Scoped middleware — only applies to routes above it
-let router = OpenApiRouter::new()
-    .route("/workspaces", get(workspace::list))
-    .route("/workspaces", post(workspace::create))
-    // Auth middleware applies to all routes above
-    .route_layer(axum::middleware::from_fn_with_state(
-        state.clone(),
-        auth_middleware,
-    ))
-    // Public routes below are NOT affected by auth
-    .route("/regions", get(region::list));
-
-// Separate router for specific middleware (e.g. rate limiting)
-let activate_router = Router::new()
-    .typed_get(oauth::device::activate)
-    .typed_post(oauth::device::activate_submit)
-    .route_layer(axum::middleware::from_fn_with_state(
-        state.clone(),
-        rate_limit_middleware,
-    ))
-    .with_state(state.clone());
-
-let router = router.merge(activate_router);
-
-// Global middleware — applied to all routes via .layer()
-let router = router
-    .layer(axum::middleware::from_fn_with_state(
-        state.tracer(),
-        otel_middleware,
-    ))
-    .layer(
-        TraceLayer::new_for_http()
-            .make_span_with(HttpMakeSpan)
-            .on_request(HttpOnRequest)
-            .on_response(HttpOnResponse),
-    )
-    .with_state(state);
-```
-
-Middleware function signature:
-
-```rust
-pub(crate) async fn auth_middleware(
-    State(app): State<AppState>,
-    req: Request,
-    next: Next,
-) -> Result<impl IntoResponse, AuthError> {
-    // Extract and validate
-    let token = extract_bearer_token(&req)?;
-
-    // Modify request (e.g. add extensions)
-    let user = authenticate(token).await?;
-    req.extensions_mut().insert(Arc::new(user));
-
-    // Call next
-    Ok(next.run(req).await)
-}
-```
-
-Rules:
-- `.route_layer()` — scoped: applies only to routes defined above it in the chain
-- `.layer()` — global: applies to all routes
-- `from_fn_with_state` — middleware that needs `AppState`
-- Middleware returns `Result<impl IntoResponse, Error>`
-- Insert per-request data via `req.extensions_mut().insert(...)` for downstream handlers
-
-## State Management
-
-Use a `Clone`-able `AppState` struct with `FromRef` for sub-state decomposition.
+| What | Where it belongs |
+|---|---|
+| Shared dependencies (pools, config, auth services) | `State<AppState>`, with `FromRef` for the narrower pieces extractors need. Keep it cheap to clone. |
+| Identity computed for this request | Authentication middleware writes a request extension; a downstream extractor reads it and rejects if absent. |
+| Authorization of this operation | Explicit checks in the extractor, handler, or domain call: permission, tenant or resource scope, and credential kind where it matters. |
+| Request body | One body-consuming extractor, last in the signature. |
 
 ```rust
 #[derive(Clone)]
@@ -440,46 +256,176 @@ pub struct AppState {
     pub base_url: Url,
     pub auth: Authorization,
     pub config: Arc<Config>,
-    pub dual_pool: DualPool,
-    pub tracer: Option<Arc<Tracer>>,
+    pub pool: DualPool,
     pub activate_rate_limiter: RateLimiter,
 }
 
-// FromRef — lets extractors access sub-state without knowing about AppState
 impl FromRef<AppState> for DualPool {
     fn from_ref(state: &AppState) -> Self {
-        state.dual_pool.clone()
-    }
-}
-
-impl FromRef<AppState> for RateLimiter {
-    fn from_ref(state: &AppState) -> Self {
-        state.activate_rate_limiter.clone()
-    }
-}
-```
-
-Use a builder for `AppState` construction:
-
-```rust
-impl AppState {
-    pub async fn build(config: Config) -> Result<Self, anyhow::Error> {
-        AppStateBuilder::new(config).build().await
+        state.pool.clone()
     }
 }
 ```
 
 Rules:
-- `AppState` must implement `Clone` (Axum requirement)
-- Wrap large or non-Clone fields in `Arc<T>`
-- Use `FromRef` so extractors can access sub-state independently — avoids tight coupling
-- Builder pattern for construction when there are multiple initialization steps
-- Helper methods on `AppState` for common operations (`url_for`, `authorization`, etc.)
+- `AppState` must be `Clone`; wrap large or non-`Clone` fields in `Arc<T>`
+- A principal in the request proves only that middleware found a valid identity. Check the
+  permission, the tenant that owns the resource, and the credential kind (a human session versus
+  an API key) that the operation requires
+- `#[utoipa::path(security(...))]` documents accepted credentials; it does not enforce them
+- Use a builder for `AppState` when construction has several fallible steps
 
-## OpenAPI Documentation with utoipa
+## Middleware and layer placement
+
+In Axum 0.8, `.layer()` and `.route_layer()` wrap only the routes registered **before** the call.
+A route added afterwards is not covered. Neither is "global" unless it is called last.
+
+- `.route_layer(l)` runs `l` only for requests that match one of those routes, so an unknown path
+  still gets the router's 404 rather than, say, a 401 from an auth layer. Use it for route guards.
+- `.layer(l)` wraps those routes and the router's fallback. Use it for cross-cutting concerns such as
+  tracing, request IDs, and compression, applied after every route is registered.
+- Order: `.layer(a).layer(b)` makes `b` the outer layer, so a request passes through `b` then `a`.
+  `ServiceBuilder::new().layer(a).layer(b)` is the reverse: a request passes through `a` then `b`.
+  Converting one style into the other without reversing the list inverts the order.
+
+```rust
+let protected = Router::new()
+    .route("/workspaces", get(workspace::list).post(workspace::create))
+    .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
+
+let activation = Router::new()
+    .typed_get(oauth::device::activate)
+    .typed_post(oauth::device::activate_submit)
+    .route_layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware));
+
+let app = Router::new()
+    .merge(protected)
+    .merge(activation)
+    .route("/regions", get(region::list)) // public, no route guard
+    // Applied last, so these wrap every route above. TraceLayer is outermost.
+    .layer(middleware::from_fn_with_state(state.clone(), otel_middleware))
+    .layer(TraceLayer::new_for_http().make_span_with(HttpMakeSpan))
+    .with_state(state);
+```
+
+Grouping public and protected routers like this makes the boundary visible, but an existing
+router that is already correct does not need restructuring to add a route: find the right
+mounting point and add it there.
+
+```rust
+pub(crate) async fn auth_middleware(
+    State(app): State<AppState>,
+    mut req: Request,
+    next: Next,
+) -> Result<Response, AuthError> {
+    let token = bearer_token(req.headers())?;
+    let principal = app.auth.authenticate(token).await?;
+    req.extensions_mut().insert(principal);
+    Ok(next.run(req).await)
+}
+```
+
+Rules:
+- Locate the mounting point before adding a handler; a route outside the auth layer is public
+- A route outside the shared auth layer can still authenticate inside its own flow (for example
+  a credential exchange); "public" means "not gated by that layer", not "unauthenticated"
+- `from_fn_with_state` for middleware that needs `AppState`; insert per-request data with
+  `req.extensions_mut().insert(...)`
+- Choose body limits, timeouts, and concurrency limits per operation and test what callers
+  receive; a timeout raises the question of which writes or spawned tasks keep running
+
+## Tracing
+
+### HTTP request spans
+
+Record the matched route template, not the raw path. `request.uri().path()` puts every path
+parameter, such as `/oauth/device/confirm/ABCD-1234`, into the span. Read `MatchedPath` from the
+request extensions and use a fixed value when no route matched:
+
+```rust
+impl<B> MakeSpan<B> for HttpMakeSpan {
+    fn make_span(&mut self, request: &Request<B>) -> Span {
+        let route = request
+            .extensions()
+            .get::<MatchedPath>()
+            .map(MatchedPath::as_str)
+            .unwrap_or("NOT_MATCHED");
+        tracing::info_span!("http_request", method = %request.method(), route)
+    }
+}
+```
+
+`MatchedPath` is set during routing, so it is visible to layers added with `Router::layer` but
+not to layers wrapped around the router from outside (for example a `ServiceBuilder` applied to
+the finished service). Confirm it is present at the layer you change, including for nested and
+merged routers. Keep the method, status, latency, and correlation fields that support diagnosis.
+
+### Handler spans
+
+Add `#[instrument]` to handlers. Prefer `skip_all` and name the safe fields you want:
+
+```rust
+#[instrument(err, skip_all, fields(%workspace_id))]
+pub async fn create(
+    ForWorkspace(workspace_id): ForWorkspace,
+    WriteDb(db): WriteDb,
+    AuthN(auth): AuthN,
+    Json(request): Json<CreateRequest>,
+) -> Result<JsonResponse<CreateResponse>, ApiError> { ... }
+
+#[instrument(err(Debug), skip_all)]
+pub(crate) async fn auth_middleware(...) -> Result<Response, AuthError> { ... }
+```
+
+Rules:
+- Without `skip_all`, every argument not in `skip(...)` is recorded with `Debug`, including
+  bodies; adding a parameter later silently adds a field
+- `ret` and `err` are separate decisions: skipping arguments does not stop them recording the
+  return value or error. Use `ret` only when the return type's `Debug` is known to be safe (a
+  wrapper that deliberately prints no contents). Never use it on a `Redirect`, a raw string, or a
+  type that can contain a URL with a code or token in it
+- `?value`, `%value`, and formatting a URL that contains the value are three different exposures;
+  a type with redacted `Debug` can still leak through its `Display` or through a URL built from it
+- Test the property: capture spans and events with a synthetic marker in the sensitive value and
+  assert it is absent (see [Testing](#testing))
+
+## Async and Tokio
+
+- Do not hold a synchronous lock guard across `.await`. A short uncontended `std` mutex section
+  is fine; use an async mutex only when the resource is genuinely held across awaits
+- Keep blocking I/O and long CPU work off the async workers, using the service's existing
+  `spawn_blocking` or pool integration; a blocking task keeps running after its caller gives up
+- When changing startup or background workers, identify the shutdown signal, how it reaches each
+  worker, and who waits for them to drain, and reuse the service's existing handles
+
+## OpenAPI documentation with utoipa
 
 Every public API handler gets a `#[utoipa::path(...)]` annotation above its `#[instrument(...)]`
 and must also be listed in its module's `routes!` macro, or it silently drops out of the spec.
 Before adding or changing a public endpoint, read [references/openapi.md](references/openapi.md)
-for handler annotations, `ToSchema` and `ToParam`, extractor params, route registration, and
-spec assembly.
+for handler annotations, `IntoParams` and `ToSchema`, wire naming, route registration alongside
+`TypedPath`, spec assembly, and spec tests.
+
+## Testing
+
+Test through the mounted application, not only by calling handlers directly: a direct call skips
+routing, layers, extractors, and rejections, which is where most of the behavior above lives.
+Use `tower::ServiceExt::oneshot` on the built `Router`, or the project's harness that runs the
+server on an ephemeral port.
+
+For a changed endpoint, cover what applies:
+
+- **Access boundary:** authorized success, unauthenticated (401), authenticated but forbidden
+  (403), another tenant's resource, the wrong credential kind, a route meant to be public, and an
+  unknown path (404, not 401)
+- **Request contract:** wrong content type, malformed body, and wrong field types, compared with
+  the statuses and bodies the endpoint promised; protocol-specific rejections such as OAuth forms
+- **Body limits:** stream a body without `Content-Length` past a small test limit and expect 413;
+  prove extraction stopped early (a poll counter or a detectable later chunk), because a status
+  assertion alone passes an implementation that drains the whole stream first
+- **No leakage:** put a synthetic marker in a credential field, a body, and a path parameter;
+  capture spans and events at debug level and assert the marker is absent, with a positive
+  control proving the subscriber captured events from that target
+- **Spec:** extend the OpenAPI and typed-path tests in [references/openapi.md](references/openapi.md)
+
+Use synthetic credentials and local fixtures throughout.

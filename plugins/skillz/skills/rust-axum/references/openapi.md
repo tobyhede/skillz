@@ -6,15 +6,22 @@ Read this when adding or changing a public API endpoint that must appear in the 
 
 - [Annotating handlers](#annotating-handlers)
 - [Schema types](#schema-types)
-- [`ToSchema` vs `ToParam`](#toschema-vs-toparam)
-- [Extractor params](#extractor-params)
+- [Parameters: `IntoParams`, inline `params`, and `ToSchema`](#parameters-intoparams-inline-params-and-toschema)
 - [Route registration with `routes!`](#route-registration-with-routes)
+- [Typed paths alongside `routes!`](#typed-paths-alongside-routes)
 - [App-level OpenAPI assembly](#app-level-openapi-assembly)
 - [Building the OpenAPI spec](#building-the-openapi-spec)
-- [Local testing](#local-testing)
+- [Rules](#rules)
+- [Testing the spec](#testing-the-spec)
 
 Use `utoipa` and `utoipa_axum` to generate OpenAPI specs from handler annotations. Docs are
-served via `utoipa_scalar`.
+served via `utoipa_scalar`. The examples target utoipa 5 and utoipa-axum 0.2; check derive and
+macro names against the versions in the project's `Cargo.lock`.
+
+A spec describes the API; it enforces nothing. `security(...)` on an operation documents which
+credentials a caller may present, but the gate is the middleware and extractors on the route.
+When the two disagree (an operation advertises a credential that the handler always rejects),
+fix the spec and add an assertion for it, and leave the runtime check alone.
 
 ## Annotating handlers
 
@@ -78,12 +85,17 @@ pub async fn list(
 
 Only use `params()` for types representing actual API parameters (headers, query strings, path
 segments). Auth extractors like `HasPermission` or `WorkspaceRole` handle internal authorization
-logic and should NOT appear in `params()` — they are not part of the API contract.
+logic and should NOT appear in `params()` — they are not part of the API contract. Listing a
+security scheme does not make the handler check it; see the note at the top of this file.
 
 ## Schema types
 
-Derive `ToSchema` on all request and response types. Use `#[serde(rename_all = "camelCase")]` for
-JSON field naming and doc comments for field descriptions.
+Derive `ToSchema` on all request and response types and use doc comments for field
+descriptions. Follow the wire names the API already uses: keep existing `serde` renames, and do
+not apply a blanket `rename_all` to a type whose fields follow a protocol (OAuth's
+`access_token`, `token_type`, and `expires_in` are snake_case by specification). Renaming a field
+on an existing type is a breaking change for clients. The example below is a new type in an API
+whose convention is camelCase.
 
 ```rust
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
@@ -111,35 +123,54 @@ pub struct RegionWithEndpoint {
 }
 ```
 
-## `ToSchema` vs `ToParam`
+## Parameters: `IntoParams`, inline `params`, and `ToSchema`
 
-Use `ToSchema` for types that appear in request/response **bodies**. Use `ToParam` for enums and
-types extracted from the URL path, query string, or headers:
+utoipa has no `ToParam` derive. It provides two:
+
+- `IntoParams` for a type that stands for a group of parameters, such as a query struct or an
+  extractor that reads a header. List the type in `params(...)`.
+- `ToSchema` for a value that has a schema, whether it travels in a body or is the type of a
+  parameter. An enum used as a path or query parameter still derives `ToSchema`.
 
 ```rust
 // Body type → ToSchema
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ProvidersResponse(Vec<OidcProvider>);
 
-// Path/query parameter → ToParam
-#[derive(ToParam)]
+// Value type of a path or query parameter → ToSchema, so the parameter can reference it
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
 pub enum OidcVendor {
     Auth0,
     Okta,
 }
-```
 
-Rule of thumb: if it's in the `body`, derive `ToSchema`. If it's in the URL or headers, derive
-`ToParam`.
+// A group of query parameters → IntoParams
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct ListProvidersQuery {
+    /// Only return providers from this vendor
+    vendor: Option<OidcVendor>,
+}
 
-## Extractor params
-
-Extractors used as OpenAPI parameters implement `IntoParams`:
-
-```rust
+// An extractor that reads a header → IntoParams with an explicit name
 #[derive(IntoParams)]
 #[into_params(names("x-workspace-id"), parameter_in = Header)]
 pub(crate) struct ForWorkspace(pub WorkspaceId);
+```
+
+A single path, query, or header parameter can be declared inline instead of deriving anything:
+
+```rust
+#[utoipa::path(
+    get,
+    path = "/providers/{vendor}",
+    params(
+        ("vendor" = OidcVendor, Path, description = "Identity provider vendor"),
+        ListProvidersQuery,
+    ),
+    responses((status = 200, body = ProvidersResponse)),
+)]
 ```
 
 ## Route registration with `routes!`
@@ -160,7 +191,9 @@ pub(crate) fn router() -> UtoipaMethodRouter<AppState> {
 A handler must have BOTH `#[utoipa::path()]` AND be listed in `routes!` to appear in the spec.
 Missing either one means the endpoint silently won't show up in the docs.
 
-The `routes!` macro generates `__path_<handler>` items that must be re-exported from the module:
+`routes!` reads the `__path_<handler>` item that `#[utoipa::path]` generates next to each
+handler. When the handlers live in submodules and `routes!` is called from the parent, re-export
+both names; when they are in the same module, no re-export is needed:
 
 ```rust
 // mod.rs
@@ -168,6 +201,17 @@ pub(crate) use create::{__path_create, create};
 pub(crate) use delete::{__path_delete, delete};
 pub(crate) use list::{__path_list, list};
 ```
+
+## Typed paths alongside `routes!`
+
+A handler can take a `TypedPath` struct for extraction and link building while `routes!` mounts
+it from its `#[utoipa::path]` metadata. The path is then declared twice, once in
+`#[typed_path("...")]` and once in `path = "..."`, so keep a test that compares the two for
+every such handler and fails when they drift.
+
+A plain `.route()` registration is invisible to the spec. Use that deliberately for a
+compatibility alias (for example a second spelling of a path kept for old clients) and note it
+beside the route, so a later change neither documents nor deletes it by accident.
 
 ## App-level OpenAPI assembly
 
@@ -239,22 +283,30 @@ pub(crate) fn build_api_doc(state: AppState) -> anyhow::Result<OpenApi> {
 }
 ```
 
-Rules:
+## Rules
+
 - Every public API handler gets a `#[utoipa::path(...)]` annotation
 - The `tag` should reference a module-level `OPENAPI_TAG` constant
 - `#[utoipa::path]` goes above `#[instrument]` in attribute order
-- Derive `ToSchema` on all request/response structs
+- Derive `ToSchema` on all request/response structs, keeping the API's existing wire names
 - Use doc comments on handler functions — they become the OpenAPI operation summary and description
 - Use `#[schema(examples(...))]` for field-level examples in the spec
 - Use `#[cfg_attr(test, derive(Deserialize))]` on response-only types that need deserialization in tests
 - Security schemes defined once in `build_api_doc`, referenced by name in handler annotations
 - Error responses can omit `body` — `(status = 401)` is valid when the error shape varies or is handled by middleware
 - Doc comment first line = endpoint heading in rendered docs; must be followed by a blank `///` line
-- Derive `ToParam` (not `ToSchema`) for enums/types used as path, query, or header parameters
+- Derive `IntoParams` for parameter groups, declare single parameters inline in `params(...)`, and derive `ToSchema` on the value types they reference; `ToParam` does not exist
 - `params()` is only for API parameters — never include auth extractors like `HasPermission` or `WorkspaceRole`
 - Both `#[utoipa::path()]` and `routes!` registration are required for a handler to appear in the spec
+- `security(...)` documents credentials; the route's middleware and extractors enforce them
 
-## Local testing
+## Testing the spec
 
-Turn on the service's `serve_openapi_docs` setting (for example `APP__SERVE_OPENAPI_DOCS=true` in
-your environment or `mise.toml`) and open the rendered docs at `http://localhost:3001/openapi`.
+- Fetch `/api/openapi.json` from the assembled app in a test and assert on the operations,
+  parameters, responses, and security alternatives you changed, so a missing `routes!` entry or
+  a stale annotation fails the build.
+- Keep the typed-path agreement test from [Typed paths alongside `routes!`](#typed-paths-alongside-routes)
+  up to date when you add or rename a route.
+- To read the rendered docs locally, turn on the service's `serve_openapi_docs` setting (for
+  example `APP__SERVE_OPENAPI_DOCS=true` in your environment or `mise.toml`) and open
+  `http://localhost:3001/openapi`.

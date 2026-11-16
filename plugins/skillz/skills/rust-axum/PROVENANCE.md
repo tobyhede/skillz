@@ -10,15 +10,19 @@ This skill is adapted from the Axum service conventions skill in the CipherStash
 
 ## Local changes
 
-Upstream ships only `SKILL.md`. Its guidance is unchanged; the edits below are layout, renamed identifiers, and two example fixes.
+Upstream ships only `SKILL.md`. This copy started from it and has since been revised against Axum 0.8.8, axum-extra 0.10, tower-http 0.6, tracing 0.1, utoipa 5.4, and utoipa-axum 0.2, following a review of the guidance against those releases. It is no longer a near-copy, so a future update is a merge by hand rather than a clean diff.
 
-- `SKILL.md`: the OpenAPI section moved to `references/openapi.md` (the skillz contract caps `SKILL.md` at 500 lines), leaving a short summary that links to it. Its `###` headings became `##` and a table of contents was added.
-- Company-specific identifiers in examples are renamed: crate paths in comments (`domain/`, `web/`), the config type (`Config`), a permission type, the workspace header (`x-workspace-id`), the JWT security scheme name (`jwt`), the API title, an example endpoint host (`api.example.com`), and the OpenAPI docs env var. The intro to the extractor list no longer says "in this codebase".
-- `SKILL.md`: the standard `#[instrument]` example now skips `request`, matching its own rule to always skip request bodies.
-- `references/openapi.md`: the moved OpenAPI section, with the renames above. `build_api_doc` also registers the `jwt` security scheme that the handler examples reference.
+- Layout: the OpenAPI section lives in `references/openapi.md`, since the skillz contract caps `SKILL.md` at 500 lines.
+- Company-specific identifiers (crate paths, config type, a permission type, the workspace header, the JWT scheme name, the API title, an endpoint host, the docs env var) are replaced with neutral ones.
+- Request bodies: the `StrictJson` helper that buffered the body into memory, logged it, and unwrapped read errors is removed. The skill now uses `Json`/`Form` or a wrapper that delegates once, logs only a rejection classification, and keeps protocol rejections with `WithRejection`.
+- Tracing: request spans record the `MatchedPath` template with a fixed fallback instead of the raw path. Handler examples use `skip_all` with named fields. The `ret`-on-redirect example is removed, with rules on `ret`, `err`, and `?`/`%`/URL formatting.
+- Errors: domain errors are mapped at the boundary preserving status, headers, content type, and machine-readable codes, replacing the rule that every conversion erases details and that domain errors never implement `IntoResponse`.
+- Layers: corrected to say `.layer()` and `.route_layer()` wrap only routes registered before the call, with the `route_layer` 404 behavior and the `.layer` versus `ServiceBuilder` ordering. The middleware example takes `mut req`.
+- New sections: a pre-change checklist; state, extensions, and authorization (including that `security(...)` documents rather than enforces); async and Tokio; and testing through the mounted router.
+- `references/openapi.md`: `ToParam` (not a utoipa derive) is replaced with `IntoParams`, inline `params(...)`, and `ToSchema`. Blanket camelCase is replaced with "keep existing wire names". Adds `TypedPath` alongside `routes!`, compatibility aliases, spec tests, and registers the `jwt` security scheme the examples reference.
 - `tests/prompts.md`: added for the skillz behavior-case contract.
 - `PROVENANCE.md`: this file.
 
-The examples use domain names such as workspaces, access keys, and OAuth device flow, and helper types such as `DualPool`, `StrictJson`, and `JsonResponse`. They illustrate the patterns; apply them with the project's own names.
+The examples use domain names such as workspaces, access keys, and OAuth device flow, and helper types such as `DualPool` and `JsonResponse`. They illustrate the patterns; apply them with the project's own names.
 
-To update, diff `.claude/skills/rust-axum/` at a newer upstream commit against this directory and bump the commit here.
+To update, read the upstream diff since the commit above, carry over any guidance that still holds, and bump the commit here.
