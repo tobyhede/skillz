@@ -29,7 +29,7 @@ These rubrics score the forward-test scenarios in [prompts.md](prompts.md). Neve
 ## ADR-governed repository with a domain-modeling workflow
 
 - Explains the snapshot model, archives or demotes no ADR even if the user insists, and records the retirement request as an open decision for the ADR process while continuing the refresh.
-- Reconciles ADRs 0111–0120, applies ADR 0114's change to the affected rule with a link to the ADR, and advances the snapshot marker to ADR 0120 with source SHA and date.
+- Reconciles ADRs 0111–0120, applies ADR 0114's change to the affected rule with a link to the ADR, and records the checked revision, date and explicit reviewed inventory through the available ADRs, treating 0120 as a navigation aid rather than proof of complete coverage.
 - Moves the retry limit out of `CONTEXT.md` into the owning requirement and keeps the definition in `CONTEXT.md`.
 - Updates `AGENTS.md`, `docs/agents/domain.md` and the workflow guide with the reading order and the same-change rule, without editing the domain-modeling skills.
 - Ends with a workflow-impact summary covering the snapshot point, ADR continuation, reading order and each `CONTEXT.md` or workflow change.
@@ -72,3 +72,31 @@ These rubrics score the forward-test scenarios in [prompts.md](prompts.md). Neve
 - Uses the second repository’s existing “proposed” status for its new ADRs and marks their paired requirements changes as proposed until merge.
 - Corrects unmerged ADR 0154 in place, despite its “accepted” label, while preserving existing accepted ADRs and tracing their proposed replacement.
 - Distinguishes an ADR-backed proposal from a ruling with no replacing ADR; the latter remains an open conflict and cannot replace the binding requirement.
+
+## Partial refinement and future ADR creation
+
+- Updates the confirmation rule from ADR 0030 while preserving ADR 0020’s cancellation-focus obligation and citation. Records which claim was replaced and retains 0020 in the relevant topic selection.
+- Flags the second chain’s conflicting status and decision text as an open conflict; does not infer that the untouched obligation has disappeared.
+- Documents the three-part creation threshold in the repository workflow: meaningful reversal cost, surprise without context, and a genuine trade-off.
+- Routes the pure rename to the glossary and affected terminology references, and the ungoverned spacing adjustment to its code owner; neither alone warrants a new ADR under that threshold.
+- Offers an ADR for the cross-context ownership decision, without inventing which alternative the maintainer chose.
+- Preserves the existing UI ADR despite its cheap reversal cost and routes the proposed change through the ADR process. Does not use the future creation threshold to bypass existing authority.
+- If the repository instead has an explicit different creation threshold, preserves it or surfaces a conflict rather than silently imposing the domain-modeling threshold.
+
+## No-change reviews and out-of-order ADRs
+
+- Detects both late-landing accepted ADR 0118 and the acceptance transition of existing ADR 0116 by comparing inventories and revisions, despite both numbers being below 0120. Does not treat the reserved gap as previously incorporated.
+- Reconciles storage and navigation, updating their rules, incorporated ADRs and checked revisions with source dispositions.
+- Updates UI with proposed ADR 0121 in the same change, using b2 as the base and identifying the same-change ADR by ID/path and proposal status rather than inventing a self-referential commit SHA.
+- Records rendering as checked with no change needed, with its reviewed delta and non-applicability reason; advances its checked revision without changing its rules or incorporated ADR set.
+- Leaves editing’s checked revision at a1 and records the remaining review. Does not label its rules incorrect solely because its revision is older or claim all five topics are current.
+- Makes the reading path find unreconciled accepted decisions regardless of number. Does not rely solely on a highest-number comparison.
+
+## Strict maintenance after same-day ADR changes
+
+- Treats the accepted amendment and lower-numbered accepted arrival as binding changes despite unchanged summary fields. Reviews all five topics and records no-change outcomes where appropriate; does not advance unchecked markers mechanically.
+- Requires evidence tied to the changed ADR contents for every topic, blocks merge while review remains incomplete, and removes the Behind line as a standing exemption.
+- Leaves binding markers alone for changes confined to proposed 0201 and rejected 0202. Recognizes later acceptance as a trigger, including same-PR review acceptance.
+- Rejects the malformed amendment heading and missing Status date; backfills only dates established from version control with provenance, preserving process restrictions on accepted ADR edits.
+- Replaces the number/date exemption with revision-based checks. Keeps number/date summaries as a local backstop and explains the same-summary blind spot without claiming that a marker edit proves review.
+- Adds and runs representative passing/failing checker fixtures or reports actual execution limits; does not claim merge readiness while required checks fail.

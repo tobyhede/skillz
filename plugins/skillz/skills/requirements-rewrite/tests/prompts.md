@@ -30,7 +30,7 @@
 - Inspect delegated diffs and use independent audit and fresh-reader exercises when delegation is available; identify a sequential review honestly when it is not.
 - Classify upstream changes through a named revision and reconcile the affected topics. Do not call a stale but internally consistent draft current.
 - Leave existing accepted ADR bodies unchanged beyond process-permitted edits, in place and binding; link each requirement to its source ADRs and route any change to a decision through the ADR process rather than a requirement edit.
-- Mark each requirements document as a snapshot with its source SHA, date and highest incorporated ADR, and tell readers that later ADRs bind where they differ.
+- Mark each requirements document as a snapshot with its checked revision, date and reviewed ADR inventory, and tell readers that unreconciled accepted decisions bind where they differ regardless of number.
 - Write into the repository's own entry points and workflow guide the new reading order and the obligation that an accepted ADR updates the owning requirement, since the domain-modeling skills read `CONTEXT.md` and ADRs directly. Do not edit those skills.
 - Keep `CONTEXT.md` a glossary: add terms coined during the rewrite there and move behaviour out of it, without redefining terms in the requirements.
 - End with a workflow-impact summary for the maintainer covering the snapshot point, ADR continuation, reading order and each `CONTEXT.md` or ADR workflow change.
@@ -96,3 +96,21 @@ Raw artifacts: `docs/agents/ui.md` links to `../adr/0139.md#decision`; its archi
 User request: “Apply the removal-confirmation and rejection-focus rulings in this rewrite PR, with their ADRs.”
 
 Raw artifacts: the repository has no draft or proposed ADR status. New, unmerged ADRs 0153 and 0154 use its normal “accepted” label and record the maintainer’s rulings, changing existing accepted ADRs. UI-85 and UI-93 still contain the old decisions. Review requests a correction to ADR 0154’s wording. The repository uses PR review to accept decisions. In a second repository, the same work uses an explicit “proposed” ADR status.
+
+### Partial refinement and future ADR creation
+
+User request: “Refresh the requirements after the new ADRs and document how we should manage future decisions.”
+
+Raw artifacts: accepted ADR 0020 requires confirmation before deleting referenced items and preserves focus after cancellation. Accepted ADR 0030 changes confirmation to apply only when Edges would be removed, and says nothing about focus. The catalogue lists 0030 as a successor to 0020 and drops 0020 from topic selection. A second chain labels its predecessor wholly superseded, but the successor text explicitly replaces only one of two obligations. The repository follows the domain-modeling workflow’s three-part ADR threshold. Upcoming work includes a purely terminological rename, a reversible spacing adjustment not decided by any ADR, and a surprising cross-context ownership decision with costly alternatives. An existing accepted ADR decides a cheap-to-change UI behaviour; a maintainer wants to change it.
+
+### No-change reviews and out-of-order ADRs
+
+User request: “Refresh the five requirement topics against this PR and show which are current.”
+
+Raw artifacts: all five topics were checked at revision a1 with highest incorporated ADR 0120. ADR 0118 was reserved but absent at a1. At target b2, 0118 lands accepted with a storage obligation; existing proposed ADR 0116 becomes accepted with a navigation obligation. The PR is based on b2 and adds proposed ADR 0121 affecting UI. Review covers the full delta for storage, navigation, UI and rendering, finding no rendering effect. Editing has not been reviewed. The PR cannot record its own final commit SHA. The old source revision and ADR inventory are available.
+
+### Strict maintenance after same-day ADR changes
+
+User request: “Apply our all-topics-current policy and prepare this ADR maintenance PR for merge.”
+
+Raw artifacts: the repository requires all five topics current for every binding ADR change. Its marker summary is ADR 0200 / 2026-11-16. On that same day, accepted ADR 0180 gains an amendment and reserved ADR 0190 lands accepted; the summary values do not change. Only storage has recorded review against the changed ADR contents; UI has a standing Behind line. Separate edits touch only proposed ADR 0201 and rejected ADR 0202. The repository allows dated metadata updates and uses one dated amendment heading and dated Status form, but an old accepted ADR has an undated Status and a new amendment uses a different heading. Version control is available. CI currently exempts a marker when its number and date already match.
