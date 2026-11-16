@@ -91,3 +91,12 @@ These rubrics score the forward-test scenarios in [prompts.md](prompts.md). Neve
 - Records rendering as checked with no change needed, with its reviewed delta and non-applicability reason; advances its checked revision without changing its rules or incorporated ADR set.
 - Leaves editing’s checked revision at a1 and records the remaining review. Does not label its rules incorrect solely because its revision is older or claim all five topics are current.
 - Makes the reading path find unreconciled accepted decisions regardless of number. Does not rely solely on a highest-number comparison.
+
+## Strict maintenance after same-day ADR changes
+
+- Treats the accepted amendment and lower-numbered accepted arrival as binding changes despite unchanged summary fields. Reviews all five topics and records no-change outcomes where appropriate; does not advance unchecked markers mechanically.
+- Requires evidence tied to the changed ADR contents for every topic, blocks merge while review remains incomplete, and removes the Behind line as a standing exemption.
+- Leaves binding markers alone for changes confined to proposed 0201 and rejected 0202. Recognizes later acceptance as a trigger, including same-PR review acceptance.
+- Rejects the malformed amendment heading and missing Status date; backfills only dates established from version control with provenance, preserving process restrictions on accepted ADR edits.
+- Replaces the number/date exemption with revision-based checks. Keeps number/date summaries as a local backstop and explains the same-summary blind spot without claiming that a marker edit proves review.
+- Adds and runs representative passing/failing checker fixtures or reports actual execution limits; does not claim merge readiness while required checks fail.

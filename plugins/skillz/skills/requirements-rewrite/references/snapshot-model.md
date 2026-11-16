@@ -7,6 +7,7 @@ Read this in Baseline, before drafting the snapshot marker, and before the final
 - Authority
 - Snapshot marker
 - After the snapshot
+- Strict maintenance checks
 - CONTEXT.md
 - Domain-modeling workflow impact
 - Communicating the impact
@@ -41,7 +42,7 @@ Follow the repository’s existing format for this metadata if it has one. Updat
 
 - **Changed and reconciled:** update its rules, incorporated ADRs, dispositions and checked revision.
 - **Checked, no change needed:** record the reviewed delta and why it does not affect the topic; advance its checked revision while leaving its rules and incorporated ADRs unchanged.
-- **Not checked or unresolved:** retain its previous checked revision and record the outstanding scope or conflict.
+- **Not checked or unresolved:** retain its previous checked revision and record the outstanding scope or conflict. Under strict maintenance, this is an intermediate work state that blocks merge, not a standing exception.
 
 Thus advance every topic actually reconciled, including a verified no-change result, rather than automatically advancing all topics or only owners whose prose changed. An older checked revision alone does not prove a rule is wrong; it identifies review still needed. A link fix or wording change alone does not advance the checked revision.
 
@@ -49,14 +50,25 @@ Thus advance every topic actually reconciled, including a verified no-change res
 
 New decisions keep arriving as ADRs. Agree with the user, and write into the repository's workflow guide, how the snapshot keeps up:
 
-- The default is same-change maintenance: accepting an ADR updates the owning requirement in the same change; update each topic’s checked revision and dispositions according to the outcomes above.
-- If the repository will not maintain requirements that way, the snapshot goes stale by design. Say so in each marker, and have the reading path send readers to accepted ADR changes absent from its reviewed inventory.
+- The default is same-change maintenance: accepting or amending an ADR updates the owning requirement in the same change. Record whether the repository requires all topics to stay current or checks a defined set of affected topics. Under the all-topics policy, every accepted ADR change requires every topic’s review and marker update, including topics with no rule changes; record the actual review before moving markers.
+- Under strict maintenance, every required topic must be reconciled before merge. Remove standing “behind” exemptions from the workflow; an unresolved decision or incomplete check blocks merge. If the repository explicitly chooses a deferred snapshot policy instead, document that different contract and direct readers to accepted ADR changes absent from its reviewed inventory. Do not silently use that fallback in a strict repository.
 
 Record the repository’s threshold for future ADRs in the workflow guide. For repositories following the domain-modeling workflow, offer an ADR for a new decision only when all three hold: changing it later has meaningful cost, a future reader would find it surprising without context, and it resolves a genuine trade-off. Keep terminology changes in the glossary and ordinary reversible choices with their existing requirements or code owner. Respect a different established repository threshold and surface conflicts rather than replacing it silently. This filter applies to new decisions: it neither retires existing accepted obligations nor exempts changes to them from the ADR process above.
 
 Either way, read the requirement, then compare the current ADR inventory and acceptance state with its reviewed inventory and revision, including same-change proposals. Check added or changed ADRs, newly accepted existing ADRs, renames and removals; a reserved number that lands below the highest incorporated number must still be reviewed. Record reserved or missing IDs as absent, never implicitly incorporated. If the old inventory or revision is unavailable, rebuild coverage from the current catalogue and report the historical comparison limit rather than declaring freshness from numbering.
 
 When the rewrite covers only some topics, the workflow guide keeps one list of the topics that have requirements, with each topic's marker, so a partial rewrite cannot appear to cover the whole repository. A topic not on the list is still read through its ADRs and existing guides.
+
+## Strict maintenance checks
+
+Specify deterministic checks in the workflow guide when strict maintenance is chosen:
+
+- **Binding changes.** Compare both sides of the revision diff and repository acceptance conventions. New accepted ADRs, amendments to accepted ADRs and status changes affecting accepted decisions trigger reconciliation. Edits confined to proposed or rejected decisions do not require marker movement. Accepting a proposal does; a same-PR acceptance through review must include the paired requirements and required topic checks before merge, even if its ADR label already says “accepted”. Keep proposed requirement edits distinguishable from binding coverage.
+- **Parseable dates.** Where amendment or Status dates are used, choose one repository-compatible form (for example `## Amendment, YYYY-MM-DD`) and a dated Status form. Reject missing, invalid or unrecognized forms rather than treating them as unchanged. Backfill historical dates from version control with provenance, using metadata edits permitted by the ADR process; if the event cannot be established, report the gap and block the date check rather than inventing a date.
+- **Revision check.** Where CI can inspect the diff, require each binding ADR change to have a disposition and review evidence for every required topic. Bind evidence to the reviewed ADR version (for example its Git blob ID or content digest) so a second change on the same day invalidates earlier evidence. A marker edit alone is insufficient. Do not exempt an unchanged topic merely because its highest number and date already match. If CI cannot run this check, record the limitation and require the equivalent review before claiming strict freshness.
+- **Local number/date backstop.** If the repository displays these summary fields, use the highest accepted ADR number and latest binding ADR change date together. An amendment or status change may advance only the date; a late lower-numbered ADR must not lower the number. These summaries supplement the checked revision and inventory, never replace them. An exemption for a marker already naming the newest number and date misses another accepted change with the same summary, such as a same-day amendment or lower-numbered arrival; document that blind spot in any existing checker until the revision check replaces the exemption.
+
+Exercise fixtures for proposal-only and rejected-only edits, acceptance, amendments to older ADRs, a same-day second change, a late lower number, an untouched topic with recorded review, an unchecked topic, and malformed or missing dates. A “behind” line must not turn a failing strict check green.
 
 ## CONTEXT.md
 
