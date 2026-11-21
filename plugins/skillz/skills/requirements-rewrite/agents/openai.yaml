@@ -1,4 +1,6 @@
 interface:
-  display_name: "Requirements Rewrite"
-  short_description: "Snapshot ADRs into current requirements and keep them in step"
-  default_prompt: "Use $requirements-rewrite to restate this repository’s accepted ADRs as a requirements snapshot, or refresh the existing snapshot against ADRs accepted since its marker."
+  display_name: "Requirements Rewrite (deprecated)"
+  short_description: "Deprecated alias for adr-snapshot"
+  default_prompt: "Use $adr-snapshot instead; $requirements-rewrite is a deprecated alias."
+policy:
+  allow_implicit_invocation: false

@@ -41,6 +41,17 @@ Every skill must include `tests/prompts.md` with these sections:
 
 Use the cases for forward testing; they are evaluation inputs, not exact-output snapshots.
 
+## Renaming a skill
+
+A released skill name is part of the public interface: users invoke it by name, and other skills name it as a boundary. This follows the company-skills rename procedure. To rename one:
+
+1. Move the directory with `git mv` and update the frontmatter `name`, the heading, `agents/openai.yaml`, and every reference to it in other skills, behavior cases, the README, and this file.
+2. Leave a deprecated alias at the old name: a `SKILL.md` with `disable-model-invocation: true`, a description starting `Deprecated alias for <new-name>`, and a body that reads `../<new-name>/SKILL.md` and follows it with the same inputs, stating that the target's `references/`, `scripts/` and other paths resolve from `../<new-name>/`; an `agents/openai.yaml` with `policy.allow_implicit_invocation: false`; and a `tests/prompts.md`. Do not symlink the old directory: the validator rejects a name that differs from its directory, and both copies would trigger.
+3. Bump the version in all three manifests, list the alias in the README skills table, and add the rename to the README's **Renamed skills** table, noting any behaviour that changed with it and the release that will remove the alias.
+4. In that later release, delete the alias directory and its README rows.
+
+A name that never shipped in a release needs no alias.
+
 ## Validation
 
 Run the repository validator before opening a pull request:

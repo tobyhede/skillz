@@ -14,7 +14,7 @@ Keep the record in a durable location agreed by the task or established reposito
 - Exact validation commands, tool/dependency prerequisites, observed results and unavailable checks.
 - Open questions, unresolved findings and the next concrete action.
 
-Record SHAs rather than relying on branch names or “latest”. Update this record at checkpoints and handoffs. Keep private evidence outside a publication path when the task requires it.
+Record SHAs rather than relying on branch names or “latest”. Cite sources by original path at a SHA, never through an archive copy, so citations survive the archive's deletion. Update this record at checkpoints and handoffs. Keep private evidence outside a publication path when the task requires it.
 
 ## Source disposition
 
