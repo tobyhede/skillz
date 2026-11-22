@@ -81,4 +81,4 @@ The final report includes a short section, written for the maintainer, that stat
 2. That ADRs stay binding and keep being written, and how the snapshot is kept current after this change.
 3. The new reading order, and where it is written down.
 4. Each change to the `CONTEXT.md` and ADR workflow, naming the file that now carries it, and any workflow step that still needs the maintainer's agreement.
-5. Last, the recommended action to delete the guide archive and unused forwarding pages after merge, with their paths, as the cut-over reference describes; git keeps their history.
+The archive-deletion recommendation is not part of this section: it closes the whole final report, after the delivery and validation status, as SKILL.md step 6 and the cut-over reference describe.

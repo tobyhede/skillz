@@ -6,6 +6,6 @@ disable-model-invocation: true
 
 # Requirements rewrite (deprecated alias)
 
-This skill was renamed to `adr-snapshot`. Read `../adr-snapshot/SKILL.md` and follow it with the same inputs. Its `references/`, `agents/` and `tests/` paths resolve from `../adr-snapshot/`; this alias directory holds none of them.
+This skill was renamed to `adr-snapshot`. Tell the user once that `requirements-rewrite` is now `adr-snapshot` and that this alias will be removed in 0.5.0.
 
-Tell the user once that `requirements-rewrite` is now `adr-snapshot` and that this alias will be removed in a later release.
+If the installed `adr-snapshot` skill is available, read `../adr-snapshot/SKILL.md` and follow it with the same inputs. Its `references/`, `agents/` and `tests/` paths resolve from `../adr-snapshot/`; this alias directory holds none of them. If it is not available, for example because only this alias was installed, stop and ask the user to install the `skillz` plugin and invoke `adr-snapshot` instead.
