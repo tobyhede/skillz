@@ -36,8 +36,8 @@
 - End with a workflow-impact summary for the maintainer covering the snapshot point, ADR continuation, reading order and each `CONTEXT.md` or ADR workflow change.
 - When asked to replace or retire the ADRs, explain the snapshot model and archive or demote nothing, even if the user confirms; record the request as an open decision for the ADR process and continue only with work that leaves the ADRs binding.
 - When the governing instructions rank requirements above accepted ADRs, surface the conflict and record it as an open decision rather than adopting either order.
-- Refresh an existing snapshot by reconciling ADRs accepted since its marker and advancing the marker, without unnecessary archival; when nothing was archived, say there is no archive to delete.
-- End the report by recommending deletion of the guide archive and of forwarding pages with no incoming references, as a separate change after merge, with exact paths and the SHA that recovers them; keep every trace citation on original paths at the source SHA. Never recommend deleting ADRs, and delete nothing without authorization.
+- Refresh an existing snapshot by reconciling ADRs accepted since its marker and advancing the marker, without unnecessary archival; still recommend deleting a guide archive an earlier run left, and say there is nothing to delete only when no archive or forwarding page is present.
+- End the report by recommending deletion of the guide archive and of each forwarding page whose recorded reason for staying no longer holds (its removal check passes and no external consumer still needs it), listing the pages that stay with their referrers or consumers, as a separate change after merge, with exact paths and the SHA that recovers them; keep every trace citation on original paths at the source SHA. Never recommend deleting ADRs, and delete nothing without authorization.
 - Report unavailable checks and publication or integration state separately. Never infer that a link scan substitutes for unexecuted tests or that a conflicting draft PR is integrated.
 
 ## Forward-test scenarios

@@ -2,9 +2,11 @@
 
 ## Should activate
 
-- “Use requirements-rewrite to refresh our requirements.” Invoked by name, it follows `adr-snapshot`.
-- “/skillz:requirements-rewrite on this repository.” An explicit invocation from an old habit or script.
-- “Run requirements-rewrite.” With no repository or scope available, follow `adr-snapshot`, which asks for the missing source before drafting.
+- “/skillz:requirements-rewrite refresh our requirements” in Claude Code. An explicit invocation from an old habit or script; it follows `adr-snapshot`.
+- “$requirements-rewrite refresh our requirements” in Codex. The explicit mention loads the alias, which follows `adr-snapshot`.
+- “/skillz:requirements-rewrite” with no repository or scope. It follows `adr-snapshot`, which asks for the missing source before drafting.
+
+A deprecated alias is explicit-only, so it has no indirect case here; the indirect request is listed under Should not activate, where `adr-snapshot` handles it.
 
 ## Should not activate
 
