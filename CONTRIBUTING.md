@@ -9,7 +9,7 @@ Add skills under `plugins/skillz/skills/<skill-name>/`. The directory is the sin
 - Write a non-empty `description` of at most 1,024 characters, in the third person and without XML tags, that says what the skill does and when it should activate. Include a boundary when a nearby request should not activate it.
 - Write imperative steps with explicit inputs, outputs, decision points, and stopping conditions. Preserve explicit user instructions and authorization boundaries.
 - Keep `SKILL.md` concise—preferably below 500 lines—and move branch-specific detail into focused files under `references/`. Link each reference directly from `SKILL.md`, keep references one level deep, and state when to read each one. Start any reference longer than 100 lines with a table of contents. Use forward-slash relative paths.
-- Add `scripts/` only for deterministic or repeated mechanics. Document inputs, outputs, dependencies, and failure behavior, then execute tests for every changed script. A skill cannot reference another skill's files, so a script two skills need is copied into each at the same path, with its tests; the validator fails when the copies differ, so change every copy together.
+- Add `scripts/` only for deterministic or repeated mechanics. Document inputs, outputs, dependencies, and failure behavior, then execute tests for every changed script. A skill cannot reference another skill's files (the one exception is a deprecated alias redirecting to its renamed target; see [Renaming a skill](#renaming-a-skill)), so a script two skills need is copied into each at the same path, with its tests; the validator fails when the copies differ, so change every copy together.
 - Put generated-output templates and other copied resources in `assets/`.
 - Add `agents/openai.yaml` only when the skill needs Codex UI metadata, explicit-only invocation, or declared tool dependencies.
 
@@ -40,6 +40,17 @@ Every skill must include `tests/prompts.md` with these sections:
 ```
 
 Use the cases for forward testing; they are evaluation inputs, not exact-output snapshots.
+
+## Renaming a skill
+
+A released skill name is part of the public interface: users invoke it by name, and other skills name it as a boundary. This follows the company-skills rename procedure. To rename one:
+
+1. Move the directory with `git mv` and update the frontmatter `name`, the heading, `agents/openai.yaml`, and every reference to it in other skills, behavior cases, the README, and this file.
+2. Leave a deprecated alias at the old name: a `SKILL.md` with `disable-model-invocation: true`, a description starting `Deprecated alias for <new-name>`, and a body that reads `../<new-name>/SKILL.md` and follows it with the same inputs, stating that the target's `references/`, `scripts/` and other paths resolve from `../<new-name>/`, and that when the target is missing the alias stops and asks the user to install the plugin and invoke `<new-name>`; an `agents/openai.yaml` with `policy.allow_implicit_invocation: false`; and a `tests/prompts.md`. An alias is explicit-only, so its Should activate cases are explicit invocations (`/plugin:old-name`, `$old-name`), and its indirect request goes under Should not activate, where the renamed skill handles it, instead of under Should activate. Do not symlink the old directory: the validator rejects a name that differs from its directory, and both copies would trigger.
+3. Bump the version in all three manifests, list the alias in the README skills table, and add the rename to the README's **Renamed skills** table, noting any behaviour that changed with it and the release that will remove the alias.
+4. In that later release, delete the alias directory and its README rows.
+
+A name that never shipped in a release needs no alias.
 
 ## Validation
 

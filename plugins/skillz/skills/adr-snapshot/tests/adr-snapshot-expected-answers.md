@@ -64,6 +64,7 @@ These rubrics score the forward-test scenarios in [prompts.md](prompts.md). Neve
 - Includes checkers and fixture tests in the local reviewable patch, unignoring their specific paths, without committing or publishing against the request.
 - Exercises passing and failing fixtures for every checker, including quoted parameterized `%s` titles for the evidence checker. Does not treat a resolvable title as proof of assertion coverage.
 - Runs link checks over live and archived documents and records actual results or explicit execution limits.
+- Cites the archived guide in the trace by `docs/agents/ui.md` at the source SHA, not its archive path, and ends the report recommending deletion of `docs/adr/archive/agent-guides/` after merge, and keeps the forwarding page, listing the other guide's `../agents/ui.md` link as the referrer that still needs it. Deletes nothing, since committing was not authorized.
 
 ## Same-PR rulings without a draft status
 
