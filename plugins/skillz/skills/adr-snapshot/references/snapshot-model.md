@@ -25,30 +25,36 @@ ADRs are the historical authority. Accepted ADRs stay binding, append-only and i
 
 Each requirements document states, near its top, the point it was taken at:
 
-- The source commit SHA and date the restatement was checked against. A commit cannot name itself, so record the base commit the change was made on; when the requirement is updated in the same change as an ADR, the ADR number is the reliable key.
-- The highest ADR number incorporated, or the explicit list of source ADRs for the topic, including any that were reviewed and found not to apply.
-- A snapshot contract: accepted ADRs remain binding, including visual detail omitted from the requirements. Later accepted ADRs bind where they differ until the requirements are updated.
+- The checked revision and date, separately from the ADRs incorporated. A commit cannot name itself: record the base SHA and explicitly list ADRs added or changed in the same proposed change, linked by ID and path, with their proposal status. Review the actual diff as well as that base revision.
+- A link to the reviewed ADR inventory and per-topic dispositions at that revision: incorporated, checked—not applicable (with reason), or unresolved. Record IDs, paths and acceptance state using the repository’s conventions. A highest incorporated ADR number may remain a navigation aid; it is never a freshness boundary or a claim that every lower number was reviewed.
+- A snapshot contract: accepted ADRs remain binding, including visual detail omitted from the requirements. Accepted decisions not yet reconciled into the snapshot bind where they differ, regardless of their numbers.
 
 For example:
 
-> Snapshot: checked against `abc1234` (2026-11-01); incorporates ADRs through 0120. Accepted ADRs remain binding, including visual detail omitted here. ADRs accepted after 0120 bind where they differ, until this document is updated.
+> Snapshot: checked against `abc1234` (2026-11-01); reviewed ADR inventory and topic dispositions: [repository trace path]. Same-change proposals: ADR 0120 [path]. Accepted ADRs remain binding, including visual detail omitted here and decisions not yet reconciled into this snapshot, regardless of number.
 
 A rule entry under that marker then reads, for example:
 
 > **Cancelling a batch cancels every unfinished item.** Reason: a partly cancelled batch leaves authors unsure which items will still run. Sources: ADR 0042, ADR 0114. Evidence: `BatchCoordinator.cancel`; test `cancels queued items` covers queued items only. Gap: running items are not cancelled (linked delivery issue).
 
-Follow the repository's existing format for this metadata if it has one. Update the marker only when the topic is actually reconciled against a newer revision; a link fix or wording change does not advance it.
+Follow the repository’s existing format for this metadata if it has one. Update the checked revision only after reviewing all changes since that topic’s previous checked revision for relevance, including cross-topic effects, and reconciling any that apply. Record one of these outcomes per topic:
+
+- **Changed and reconciled:** update its rules, incorporated ADRs, dispositions and checked revision.
+- **Checked, no change needed:** record the reviewed delta and why it does not affect the topic; advance its checked revision while leaving its rules and incorporated ADRs unchanged.
+- **Not checked or unresolved:** retain its previous checked revision and record the outstanding scope or conflict.
+
+Thus advance every topic actually reconciled, including a verified no-change result, rather than automatically advancing all topics or only owners whose prose changed. An older checked revision alone does not prove a rule is wrong; it identifies review still needed. A link fix or wording change alone does not advance the checked revision.
 
 ## After the snapshot
 
 New decisions keep arriving as ADRs. Agree with the user, and write into the repository's workflow guide, how the snapshot keeps up:
 
-- The default is same-change maintenance: accepting an ADR updates the owning requirement and its snapshot marker in the same change.
-- If the repository will not maintain requirements that way, the snapshot goes stale by design. Say so in each marker, and have the reading path send readers to ADRs newer than the marker.
+- The default is same-change maintenance: accepting an ADR updates the owning requirement in the same change; update each topic’s checked revision and dispositions according to the outcomes above.
+- If the repository will not maintain requirements that way, the snapshot goes stale by design. Say so in each marker, and have the reading path send readers to accepted ADR changes absent from its reviewed inventory.
 
 Record the repository’s threshold for future ADRs in the workflow guide. For repositories following the domain-modeling workflow, offer an ADR for a new decision only when all three hold: changing it later has meaningful cost, a future reader would find it surprising without context, and it resolves a genuine trade-off. Keep terminology changes in the glossary and ordinary reversible choices with their existing requirements or code owner. Respect a different established repository threshold and surface conflicts rather than replacing it silently. This filter applies to new decisions: it neither retires existing accepted obligations nor exempts changes to them from the ADR process above.
 
-Either way, the reader's rule is the same: read the requirement, then check the ADR catalogue for anything accepted after its marker.
+Either way, read the requirement, then compare the current ADR inventory and acceptance state with its reviewed inventory and revision, including same-change proposals. Check added or changed ADRs, newly accepted existing ADRs, renames and removals; a reserved number that lands below the highest incorporated number must still be reviewed. Record reserved or missing IDs as absent, never implicitly incorporated. If the old inventory or revision is unavailable, rebuild coverage from the current catalogue and report the historical comparison limit rather than declaring freshness from numbering.
 
 When the rewrite covers only some topics, the workflow guide keeps one list of the topics that have requirements, with each topic's marker, so a partial rewrite cannot appear to cover the whole repository. A topic not on the list is still read through its ADRs and existing guides.
 
@@ -67,8 +73,8 @@ Repositories that use the mattpocock skills have agents that read `CONTEXT.md` a
 
 Those skills take repository-specific reading rules from `docs/agents/domain.md`, which `setup-matt-pocock-skills` generates, and from the agent entry point that links it. Carry these changes there and in the repository's workflow guide, or in their existing equivalents:
 
-- **Reading order.** Agent entry point, then `CONTEXT.md` for terms, then the owning requirement, then ADRs for the full argument, rejected alternatives, history and anything newer than the snapshot marker. In `docs/agents/domain.md`'s "before exploring" list, put the owning requirement before `docs/adr/`, so the skills' "read the ADRs in the area" step reaches it first.
-- **Recording a decision.** `domain-modeling` still decides when an ADR is warranted and its format. Add the repository's obligation that an accepted ADR also updates the owning requirement and marker in the same change, or records that the topic's snapshot is now behind.
+- **Reading order.** Agent entry point, then `CONTEXT.md` for terms, then the owning requirement, then ADRs for the full argument, rejected alternatives, history and any accepted decision not yet reconciled into the snapshot. In `docs/agents/domain.md`'s "before exploring" list, put the owning requirement before `docs/adr/`, so the skills' "read the ADRs in the area" step reaches it first.
+- **Recording a decision.** `domain-modeling` still decides when an ADR is warranted and its format. Add the repository’s obligation that an accepted ADR also updates the owning requirement in the same change; use the per-topic outcomes above to update checked revisions or record remaining review.
 - **Recording a term.** Unchanged: terms still go into `CONTEXT.md` the moment they settle. Add that a renamed term is also applied to the requirements that use it.
 - **ADR conflicts.** Skills that respect ADRs keep doing so. Extend `docs/agents/domain.md`'s conflict rule to requirements: output that contradicts an ADR or a requirement is surfaced, and a requirement that disagrees with an accepted ADR is a defect, never a reason to ignore the ADR.
 - **Build status.** Requirements may list accepted-but-unbuilt behaviour; code does not retire an accepted rule.
@@ -79,7 +85,7 @@ Check each of these against what the repository's entry points and workflow guid
 
 The final report includes a short section, written for the maintainer, that states:
 
-1. What the requirements are: a snapshot as of the recorded SHA and ADR number, not a new authority.
+1. What the requirements are: a snapshot at the checked revision with an explicit reviewed ADR inventory, not a new authority.
 2. That ADRs stay binding and keep being written, and how the snapshot is kept current after this change.
 3. The new reading order, and where it is written down.
 4. Each change to the `CONTEXT.md` and ADR workflow, naming the file that now carries it, and any workflow step that still needs the maintainer's agreement.

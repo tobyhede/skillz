@@ -10,6 +10,7 @@ Keep the record in a durable location agreed by the task or established reposito
 - Target branch and last checked target SHA; affected topics since the prior checkpoint.
 - Scope, exclusions, authorization already given and any remaining explicit gates.
 - Topic owners, source inventory and locations of drafts, traces and decisions.
+- Per-topic checked revisions, reviewed ADR inventories and dispositions, including same-change proposals, no-change review outcomes with reasons, and outstanding review.
 - Rulings, each with a “Changes an ADR?” yes/no column, affected ADRs, the reason for the classification, and the new ADR or open conflict for each yes. Recheck earlier rulings when later drafting reveals a narrowing.
 - Exact validation commands, tool/dependency prerequisites, observed results and unavailable checks.
 - Open questions, unresolved findings and the next concrete action.
