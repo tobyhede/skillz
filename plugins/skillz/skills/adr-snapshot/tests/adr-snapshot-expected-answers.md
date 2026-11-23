@@ -29,7 +29,7 @@ These rubrics score the forward-test scenarios in [prompts.md](prompts.md). Neve
 ## ADR-governed repository with a domain-modeling workflow
 
 - Explains the snapshot model, archives or demotes no ADR even if the user insists, and records the retirement request as an open decision for the ADR process while continuing the refresh.
-- Reconciles ADRs 0111–0120, applies ADR 0114's change to the affected rule with a link to the ADR, and records the checked revision, date and explicit reviewed inventory through the available ADRs, treating 0120 as a navigation aid rather than proof of complete coverage.
+- Reconciles every accepted ADR change missing from the marker's reviewed inventory (in this scenario ADRs 0111–0120), applies ADR 0114's change to the affected rule with a link to the ADR, and records the checked revision, date and explicit reviewed inventory through the available ADRs, treating 0120 as a navigation aid rather than proof of complete coverage.
 - Moves the retry limit out of `CONTEXT.md` into the owning requirement and keeps the definition in `CONTEXT.md`.
 - Updates `AGENTS.md`, `docs/agents/domain.md` and the workflow guide with the reading order and the same-change rule, without editing the domain-modeling skills.
 - Ends with a workflow-impact summary covering the snapshot point, ADR continuation, reading order and each `CONTEXT.md` or workflow change.
