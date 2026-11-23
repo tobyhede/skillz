@@ -49,6 +49,8 @@ Write the scenarios and their evidence-backed expected answers from the sources 
 
 Compare the recorded source and target revisions. Classify relevant changes by affected topics, not just file overlap: a refactor can move the evidence or change ownership without touching documentation. List source documents added or renamed since the baseline, for example `git diff --name-status --diff-filter=AR <baseline>..<target> -- <doc paths>`, and inventory any new guide, glossary file or refactor record before closing the audit.
 
+Compare the ADR inventory and acceptance state at each topic’s checked revision with the target and proposed diff, without filtering by ADR number. Include lower-numbered late arrivals and existing proposals that became accepted. Resolve renamed or removed inventory entries explicitly. Record each topic as changed and reconciled, checked with no change needed, or not checked/unresolved, following the snapshot-model marker rules. Verify that every advanced checked revision has evidence for its outcome; unchanged prose alone proves neither review nor staleness. For strict maintenance, exercise the checks and fixtures in the snapshot-model reference and verify that every required topic is reconciled before merge.
+
 Record which old rulings still apply, which have been explicitly superseded and which need a new decision. Do not treat an old ruling as universal across changed product concepts. Close the audit against a named target SHA. If upstream cannot be checked, qualify freshness rather than claiming the docs describe current main.
 
 ## Mechanical evidence
