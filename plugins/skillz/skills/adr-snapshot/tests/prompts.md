@@ -109,3 +109,9 @@ Raw artifacts: accepted ADR 0020 requires confirmation before deleting reference
 User request: “Refresh the five requirement topics against this PR and show which are current.”
 
 Raw artifacts: all five topics were checked at revision a1 with highest incorporated ADR 0120. ADR 0118 was reserved but absent at a1. At target b2, 0118 lands accepted with a storage obligation; existing proposed ADR 0116 becomes accepted with a navigation obligation. The PR is based on b2 and adds proposed ADR 0121 affecting UI. Review covers the full delta for storage, navigation, UI and rendering, finding no rendering effect. Editing has not been reviewed. The PR cannot record its own final commit SHA. The old source revision and ADR inventory are available.
+
+### Strict maintenance after same-day ADR changes
+
+User request: “Apply our all-topics-current policy and prepare this ADR maintenance PR for merge.”
+
+Raw artifacts: the repository requires all five topics current for every binding ADR change. Its marker summary is ADR 0200 / 2026-11-16. On that same day, accepted ADR 0180 gains an amendment and reserved ADR 0190 lands accepted; the summary values do not change. Only storage has recorded review against the changed ADR contents; UI has a standing Behind line. Separate edits touch only proposed ADR 0201 and rejected ADR 0202. The repository allows dated metadata updates and uses one dated amendment heading and dated Status form, but an old accepted ADR has an undated Status and a new amendment uses a different heading. Version control is available. CI currently exempts a marker when its number and date already match.
