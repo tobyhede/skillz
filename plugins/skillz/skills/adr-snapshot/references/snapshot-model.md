@@ -46,6 +46,8 @@ New decisions keep arriving as ADRs. Agree with the user, and write into the rep
 - The default is same-change maintenance: accepting an ADR updates the owning requirement and its snapshot marker in the same change.
 - If the repository will not maintain requirements that way, the snapshot goes stale by design. Say so in each marker, and have the reading path send readers to ADRs newer than the marker.
 
+Record the repository’s threshold for future ADRs in the workflow guide. For repositories following the domain-modeling workflow, offer an ADR for a new decision only when all three hold: changing it later has meaningful cost, a future reader would find it surprising without context, and it resolves a genuine trade-off. Keep terminology changes in the glossary and ordinary reversible choices with their existing requirements or code owner. Respect a different established repository threshold and surface conflicts rather than replacing it silently. This filter applies to new decisions: it neither retires existing accepted obligations nor exempts changes to them from the ADR process above.
+
 Either way, the reader's rule is the same: read the requirement, then check the ADR catalogue for anything accepted after its marker.
 
 When the rewrite covers only some topics, the workflow guide keeps one list of the topics that have requirements, with each topic's marker, so a partial rewrite cannot appear to cover the whole repository. A topic not on the list is still read through its ADRs and existing guides.

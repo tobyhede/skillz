@@ -97,3 +97,9 @@ Raw artifacts: `docs/agents/ui.md` links to `../adr/0139.md#decision`; its archi
 User request: “Apply the removal-confirmation and rejection-focus rulings in this rewrite PR, with their ADRs.”
 
 Raw artifacts: the repository has no draft or proposed ADR status. New, unmerged ADRs 0153 and 0154 use its normal “accepted” label and record the maintainer’s rulings, changing existing accepted ADRs. UI-85 and UI-93 still contain the old decisions. Review requests a correction to ADR 0154’s wording. The repository uses PR review to accept decisions. In a second repository, the same work uses an explicit “proposed” ADR status.
+
+### Partial refinement and future ADR creation
+
+User request: “Refresh the requirements after the new ADRs and document how we should manage future decisions.”
+
+Raw artifacts: accepted ADR 0020 requires confirmation before deleting referenced items and preserves focus after cancellation. Accepted ADR 0030 changes confirmation to apply only when Edges would be removed, and says nothing about focus. The catalogue lists 0030 as a successor to 0020 and drops 0020 from topic selection. A second chain labels its predecessor wholly superseded, but the successor text explicitly replaces only one of two obligations. The repository follows the domain-modeling workflow’s three-part ADR threshold. Upcoming work includes a purely terminological rename, a reversible spacing adjustment not decided by any ADR, and a surprising cross-context ownership decision with costly alternatives. An existing accepted ADR decides a cheap-to-change UI behaviour; a maintainer wants to change it.
