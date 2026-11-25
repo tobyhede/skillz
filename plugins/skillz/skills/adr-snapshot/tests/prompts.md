@@ -21,7 +21,7 @@
 - Copies `scripts/adr_snapshot.py` into the target repository, runs `init` only when no lock exists, and uses `check`'s pending list as the refresh work list.
 - Never hand-writes revisions, dates, freshness markers or ADR coverage lists; the lock file is written only by `stamp`.
 - Writes rules in the format from `references/format.md`, each linking the ADRs it restates, with the contract line linking the lock at the top of every requirements document.
-- Leaves accepted ADRs in place and unedited, except deleting an ADR that a later ADR fully replaces, recorded with `stamp --supersede`. A partly superseded ADR stays.
+- Leaves accepted ADRs in place and unedited, except deleting an ADR that a later ADR fully replaces, recorded with `stamp --supersede` during a refresh, or with `supersede OLD NEW` alone in a pull request between refreshes, which leaves pending ADRs pending. A partly superseded ADR stays.
 - Records unresolved conflicts as open questions with a recommendation, never by editing a requirement against an accepted ADR.
 - Marks ADRs that no requirement needs with `stamp --na` and a specific reason instead of citing them artificially.
 - Adds the CI step and the agent entry-point line once, without editing other workflow guides or the domain-modeling skills.

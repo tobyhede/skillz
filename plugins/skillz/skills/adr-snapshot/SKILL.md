@@ -11,7 +11,7 @@ A documentation rewrite does not authorize implementing defects, changing produc
 
 ## Steps
 
-1. **Set up the check.** Copy `scripts/adr_snapshot.py` from this skill to `scripts/adr_snapshot.py` in the target repository. If a copy exists with a lower `SCRIPT_VERSION` than this skill's, replace it; never replace a newer one. If there is no lock yet, run `python3 scripts/adr_snapshot.py init`, passing `--adrs` and `--requirements` globs when the repository does not use `docs/adr/[0-9]*.md` and `docs/requirements/*.md`. Run `check` and keep its output: on a refresh, its `pending` lines are the work list.
+1. **Set up the check.** Copy `scripts/adr_snapshot.py` from this skill to `scripts/adr_snapshot.py` in the target repository. If a copy exists with a lower `SCRIPT_VERSION` than this skill's, replace it; never replace a newer one. If there is no lock yet, run `python3 scripts/adr_snapshot.py init`, passing `--adrs` and `--requirements` globs when the repository does not use `docs/adr/[0-9]*.md` and `docs/requirements/*.md`, and `--superseded GLOB` when it moves retired ADRs into a directory instead of deleting them. Run `check` and keep its output: on a refresh, its `pending` lines are the work list.
 
 2. **Read the sources.** Read the pending ADRs (every ADR, on a first run), the requirements they affect, overlapping guides and `CONTEXT.md`. Treat code and tests as evidence of what is built, not of what is intended.
 
@@ -19,9 +19,9 @@ A documentation rewrite does not authorize implementing defects, changing produc
 
 4. **Handle conflicts.** When sources disagree and the ADRs do not settle it, add the conflict to the document's open questions with a recommendation, or draft a new ADR when the user has decided. Never resolve a conflict by editing a requirement against an accepted ADR, and never edit an accepted ADR's decision.
 
-5. **Delete superseded ADRs.** Delete an ADR only when a later ADR replaces every decision in it. Partly superseded ADRs stay. Cite the replacement in the rules, delete the file, and record it with `stamp --supersede OLD NEW`. Delete superseded guides outright; git keeps them.
+5. **Delete superseded ADRs.** Delete an ADR only when a later ADR replaces every decision in it. Partly superseded ADRs stay. Cite the replacement in the rules, delete the file, and record it with `stamp --supersede OLD NEW`. Delete superseded guides outright; git keeps them. Between refreshes, a pull request that supersedes a locked ADR records only that with `supersede OLD NEW`, which leaves every other lock entry alone; requirements still citing OLD show as pending until the next refresh, and `stamp` refuses until they cite NEW.
 
-6. **Stamp.** Run `python3 scripts/adr_snapshot.py stamp`, adding `--na PATH REASON` for each ADR no requirement needs to cite. It refuses to write the lock until every ADR is cited or has a reason, every requirements document that cites an ADR links the lock, and every ADR link resolves. Fix what it reports and rerun.
+6. **Stamp.** Run `python3 scripts/adr_snapshot.py stamp`, adding `--na PATH REASON` for each ADR no requirement needs to cite and `--leave-pending PATH` for each ADR you did not reconcile, so it stays pending. Check its `recorded:` lines: each names an ADR the lock now claims the requirements restate. It refuses to write the lock until every ADR is cited or has a reason, every requirements document that cites an ADR links the lock, and every ADR link resolves. Fix what it reports and rerun.
 
 7. **Wire it in, once.** Add the check to CI and the reading-order line to the agent entry point, using the snippets in [Format](references/format.md). Skip whichever is already present.
 
