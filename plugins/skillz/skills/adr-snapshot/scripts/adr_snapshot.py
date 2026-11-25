@@ -22,6 +22,7 @@ Lock format (JSON, version 1):
 
   {
     "version": 1,
+    "script_version": "0.5.0",
     "adr_glob": "docs/adr/[0-9]*.md",
     "requirements_glob": "docs/requirements/*.md",
     "adrs": {"docs/adr/0042-x.md": {"sha256": "...", "na": "optional reason"}},
@@ -31,6 +32,8 @@ Lock format (JSON, version 1):
 Rules check enforces (exit 1 on any):
 
   - the lock exists, parses, and has a known version and both globs;
+  - the lock was not written by a newer copy of this script (stamp
+    refuses too); a lock with no script_version is accepted;
   - every locked ADR still exists, unless it is recorded as superseded;
   - every ADR in the tree that is in the lock is cited by a requirements
     document or has an "na" reason;
@@ -56,6 +59,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 LOCK_VERSION = 1
+SCRIPT_VERSION = "0.5.0"
 DEFAULT_LOCK = "docs/requirements/snapshot.lock.json"
 DEFAULT_ADR_GLOB = "docs/adr/[0-9]*.md"
 DEFAULT_REQUIREMENTS_GLOB = "docs/requirements/*.md"
@@ -99,6 +103,13 @@ def rel(root: Path, path: Path) -> str:
     return path.resolve().relative_to(root.resolve()).as_posix()
 
 
+def parse_version(value: str) -> tuple[int, ...]:
+    try:
+        return tuple(int(part) for part in value.split("."))
+    except (AttributeError, ValueError) as exc:
+        raise LockError(f"unrecognised script_version {value!r}") from exc
+
+
 def load_lock(path: Path) -> dict:
     if not path.is_file():
         raise LockError(f"{path.name}: lock file not found; run `init` first")
@@ -108,6 +119,12 @@ def load_lock(path: Path) -> dict:
         raise LockError(f"{path.name}: invalid JSON: {exc}") from exc
     if not isinstance(lock, dict) or lock.get("version") != LOCK_VERSION:
         raise LockError(f"{path.name}: expected \"version\": {LOCK_VERSION}")
+    written_by = lock.get("script_version")
+    if written_by is not None and parse_version(written_by) > parse_version(SCRIPT_VERSION):
+        raise LockError(
+            f"{path.name}: written by adr_snapshot.py {written_by}; "
+            f"update this copy (it is {SCRIPT_VERSION}) from the adr-snapshot skill"
+        )
     for key in ("adr_glob", "requirements_glob"):
         if not isinstance(lock.get(key), str) or not lock[key]:
             raise LockError(f"{path.name}: missing \"{key}\"")
@@ -128,6 +145,7 @@ def write_lock(path: Path, lock: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     ordered = {
         "version": LOCK_VERSION,
+        "script_version": SCRIPT_VERSION,
         "adr_glob": lock["adr_glob"],
         "requirements_glob": lock["requirements_glob"],
         "adrs": dict(sorted(lock["adrs"].items())),

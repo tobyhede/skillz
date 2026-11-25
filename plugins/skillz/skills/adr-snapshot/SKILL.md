@@ -11,7 +11,7 @@ A documentation rewrite does not authorize implementing defects, changing produc
 
 ## Steps
 
-1. **Set up the check.** Copy `scripts/adr_snapshot.py` from this skill to `scripts/adr_snapshot.py` in the target repository, or update an existing copy. If there is no lock yet, run `python3 scripts/adr_snapshot.py init`, passing `--adrs` and `--requirements` globs when the repository does not use `docs/adr/[0-9]*.md` and `docs/requirements/*.md`. Run `check` and keep its output: on a refresh, its `pending` lines are the work list.
+1. **Set up the check.** Copy `scripts/adr_snapshot.py` from this skill to `scripts/adr_snapshot.py` in the target repository. If a copy exists with a lower `SCRIPT_VERSION` than this skill's, replace it; never replace a newer one. If there is no lock yet, run `python3 scripts/adr_snapshot.py init`, passing `--adrs` and `--requirements` globs when the repository does not use `docs/adr/[0-9]*.md` and `docs/requirements/*.md`. Run `check` and keep its output: on a refresh, its `pending` lines are the work list.
 
 2. **Read the sources.** Read the pending ADRs (every ADR, on a first run), the requirements they affect, overlapping guides and `CONTEXT.md`. Treat code and tests as evidence of what is built, not of what is intended.
 

@@ -14,6 +14,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import adr_snapshot  # noqa: E402
 
+PLUGIN_VERSION = json.loads(
+    (Path(__file__).resolve().parents[3] / "plugin.json").read_text(encoding="utf-8")
+)["version"]
+
 CONTRACT = "> Snapshot of the ADRs in [the lock](snapshot.lock.json). ADRs added or changed since bind where they differ.\n\n"
 
 
@@ -205,6 +209,50 @@ class AdrSnapshotTest(unittest.TestCase):
         code, out = self.repo.run("check")
         self.assertEqual(code, 1)
         self.assertIn("run `init` first", out)
+
+    def test_stamp_records_the_released_script_version(self) -> None:
+        self.stamp_clean()
+        self.assertEqual(self.repo.lock()["script_version"], PLUGIN_VERSION)
+
+    def set_lock_field(self, key: str, value: object) -> None:
+        lock = self.repo.lock()
+        if value is None:
+            lock.pop(key, None)
+        else:
+            lock[key] = value
+        (self.repo.root / adr_snapshot.DEFAULT_LOCK).write_text(json.dumps(lock), encoding="utf-8")
+
+    def test_check_fails_on_lock_from_newer_script(self) -> None:
+        self.stamp_clean()
+        self.set_lock_field("script_version", "99.0.0")
+        code, out = self.repo.run("check")
+        self.assertEqual(code, 1)
+        self.assertIn("written by adr_snapshot.py 99.0.0", out)
+        self.assertIn(f"update this copy (it is {PLUGIN_VERSION})", out)
+
+    def test_stamp_refuses_lock_from_newer_script(self) -> None:
+        self.stamp_clean()
+        self.set_lock_field("script_version", "99.0.0")
+        before = (self.repo.root / adr_snapshot.DEFAULT_LOCK).read_text(encoding="utf-8")
+        code, out = self.repo.run("stamp")
+        self.assertEqual(code, 1)
+        self.assertIn("written by adr_snapshot.py 99.0.0", out)
+        self.assertEqual((self.repo.root / adr_snapshot.DEFAULT_LOCK).read_text(encoding="utf-8"), before)
+
+    def test_unversioned_lock_is_accepted_and_upgraded_by_stamp(self) -> None:
+        self.stamp_clean()
+        self.set_lock_field("script_version", None)
+        code, out = self.repo.run("check")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.repo.run("stamp")[0], 0)
+        self.assertEqual(self.repo.lock()["script_version"], PLUGIN_VERSION)
+
+    def test_malformed_script_version_fails(self) -> None:
+        self.stamp_clean()
+        self.set_lock_field("script_version", "latest")
+        code, out = self.repo.run("check")
+        self.assertEqual(code, 1)
+        self.assertIn("unrecognised script_version 'latest'", out)
 
     def test_init_refuses_to_overwrite(self) -> None:
         code, out = self.repo.run("init")
