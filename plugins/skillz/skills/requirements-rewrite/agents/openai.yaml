@@ -1,6 +1,0 @@
-interface:
-  display_name: "Requirements Rewrite (deprecated)"
-  short_description: "Deprecated alias for adr-snapshot"
-  default_prompt: "Use $adr-snapshot instead; $requirements-rewrite is a deprecated alias."
-policy:
-  allow_implicit_invocation: false
