@@ -1,4 +1,4 @@
 interface:
   display_name: "ADR Snapshot"
-  short_description: "Snapshot ADRs into current requirements and keep them in step"
-  default_prompt: "Use $adr-snapshot to restate this repository’s accepted ADRs as a requirements snapshot, or refresh the existing snapshot against ADRs accepted since its marker."
+  short_description: "Restate ADRs as requirements, locked and checked by a script"
+  default_prompt: "Use $adr-snapshot to restate this repository’s accepted ADRs as requirements, or refresh them against the ADRs its lock check reports as pending."
