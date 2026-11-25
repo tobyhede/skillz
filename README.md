@@ -14,6 +14,12 @@ Personal agent workflows for Codex and Claude Code, published as [open Agent Ski
 
 All ship in the `skillz` plugin. Agents pick a skill from its description, so describe the problem ("this endpoint got slow", "add a benchmark gate to CI", "refresh our requirements after the refactor") and the matching skill loads.
 
+### Renamed skills
+
+| Old name | New name | Renamed in | Alias removed in | Behaviour changed |
+| --- | --- | --- | --- | --- |
+| `requirements-rewrite` | `adr-snapshot` | 0.4.0 | 0.5.0 | 0.5.0 replaced the snapshot markers and same-change maintenance with a script-maintained lock file checked in CI. |
+
 ## Install
 
 **Claude Code**

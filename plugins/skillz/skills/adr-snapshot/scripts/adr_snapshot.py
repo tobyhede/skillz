@@ -39,7 +39,8 @@ Rules check enforces (exit 1 on any):
     document or has an "na" reason;
   - a superseded ADR is absent from the tree, is cited by no requirements
     document, and names a replacement that is locked and not itself superseded;
-  - every link from a requirements document into the ADR directory resolves;
+  - every link from a requirements document to an ADR (a locked, superseded
+    or glob-matching path) resolves, and none cites a superseded ADR;
   - every requirements document that cites an ADR links to the lock file.
 
 Hashes ignore line-ending differences. Requires Python 3.9+ and, for
@@ -49,6 +50,7 @@ Hashes ignore line-ending differences. Requires Python 3.9+ and, for
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -56,7 +58,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 LOCK_VERSION = 1
 SCRIPT_VERSION = "0.5.0"
@@ -104,8 +106,9 @@ def rel(root: Path, path: Path) -> str:
 
 
 def parse_version(value: str) -> tuple[int, ...]:
+    """Compare release numbers only: 0.6.0-rc.1 and 0.6.0 are the same release."""
     try:
-        return tuple(int(part) for part in value.split("."))
+        return tuple(int(part) for part in re.split(r"[-+]", value, maxsplit=1)[0].split("."))
     except (AttributeError, ValueError) as exc:
         raise LockError(f"unrecognised script_version {value!r}") from exc
 
@@ -158,12 +161,6 @@ def tree_adrs(root: Path, lock: dict) -> dict[str, str]:
     return {rel(root, p): digest(p) for p in sorted(root.glob(lock["adr_glob"])) if p.is_file()}
 
 
-def adr_dir(lock: dict) -> PurePosixPath:
-    parts = PurePosixPath(lock["adr_glob"]).parts
-    fixed = [p for p in parts[:-1] if not any(c in p for c in "*?[")]
-    return PurePosixPath(*fixed) if fixed else PurePosixPath(".")
-
-
 def resolve_link(root: Path, doc: Path, target: str) -> str | None:
     if re.match(r"^[a-z][a-z0-9+.-]*:", target, re.I) or target.startswith("#"):
         return None
@@ -178,9 +175,14 @@ def resolve_link(root: Path, doc: Path, target: str) -> str | None:
         return None
 
 
+def matches_glob(path: str, glob: str) -> bool:
+    patterns = {glob, glob.replace("**/", "")}
+    return any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
+
+
 def scan_requirements(root: Path, lock: dict, lock_path: Path) -> tuple[dict[str, list[str]], list[str]]:
     """Return {adr path: [citing docs]} and structural errors in the requirements."""
-    adr_base = adr_dir(lock).as_posix()
+    superseded = lock["superseded"]
     lock_rel = rel(root, lock_path)
     citations: dict[str, list[str]] = {}
     errors: list[str] = []
@@ -195,13 +197,14 @@ def scan_requirements(root: Path, lock: dict, lock_path: Path) -> tuple[dict[str
                 continue
             if path == lock_rel:
                 links_lock = True
-            elif adr_base == "." or path.startswith(adr_base + "/"):
-                if not path.endswith(".md"):
+            elif path in lock["adrs"] or path in superseded or matches_glob(path, lock["adr_glob"]):
+                cites_adr = True
+                if path in superseded and not (root / path).is_file():
+                    errors.append(f"{doc_rel}: cites superseded ADR {path}; cite {superseded[path]['by']} instead")
                     continue
                 if not (root / path).is_file():
                     errors.append(f"{doc_rel}: links to missing ADR {path}")
                     continue
-                cites_adr = True
                 citations.setdefault(path, [])
                 if doc_rel not in citations[path]:
                     citations[path].append(doc_rel)
@@ -272,6 +275,9 @@ def stamp(root: Path, lock_path: Path, na: list[list[str]], supersede: list[list
         if old_path in tree:
             raise LockError(f"{old_path}: delete the file before recording it as superseded")
         lock["superseded"][old_path] = {"by": by, "commit": git_commit_with(root, old_path)}
+        for entry in lock["superseded"].values():
+            if entry["by"] == old_path:
+                entry["by"] = by
     reasons = {path: entry["na"] for path, entry in old.items() if entry.get("na")}
     for path, reason in na:
         if path not in tree:

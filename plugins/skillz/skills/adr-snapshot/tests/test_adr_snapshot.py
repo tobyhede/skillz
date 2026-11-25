@@ -254,6 +254,52 @@ class AdrSnapshotTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("unrecognised script_version 'latest'", out)
 
+    def test_superseding_a_replacement_repoints_the_chain(self) -> None:
+        self.stamp_clean()
+        (self.repo.root / "docs/adr/0002-logging.md").unlink()
+        self.assertEqual(self.repo.run("stamp", "--supersede", "docs/adr/0002-logging.md", "docs/adr/0001-cancel.md")[0], 0)
+        self.repo.commit()
+        first_commit = self.repo.lock()["superseded"]["docs/adr/0002-logging.md"]["commit"]
+        self.repo.write("docs/adr/0003-cancel-v2.md", "# Cancel v2\n")
+        self.repo.write(
+            "docs/requirements/batches.md",
+            "# Batches\n\n" + CONTRACT + "Rule. Sources: [ADR 0003](../adr/0003-cancel-v2.md).\n",
+        )
+        self.repo.commit()
+        (self.repo.root / "docs/adr/0001-cancel.md").unlink()
+        code, out = self.repo.run("stamp", "--supersede", "docs/adr/0001-cancel.md", "docs/adr/0003-cancel-v2.md")
+        self.assertEqual(code, 0, out)
+        superseded = self.repo.lock()["superseded"]
+        self.assertEqual(superseded["docs/adr/0002-logging.md"]["by"], "docs/adr/0003-cancel-v2.md")
+        self.assertEqual(superseded["docs/adr/0002-logging.md"]["commit"], first_commit)
+        self.assertEqual(superseded["docs/adr/0001-cancel.md"]["by"], "docs/adr/0003-cancel-v2.md")
+
+    def test_link_to_superseded_adr_names_its_replacement(self) -> None:
+        self.stamp_clean()
+        (self.repo.root / "docs/adr/0002-logging.md").unlink()
+        self.assertEqual(self.repo.run("stamp", "--supersede", "docs/adr/0002-logging.md", "docs/adr/0001-cancel.md")[0], 0)
+        self.repo.write(
+            "docs/requirements/other.md",
+            "# Other\n\n" + CONTRACT + "Rule. Sources: [ADR 0002](../adr/0002-logging.md).\n",
+        )
+        code, out = self.repo.run("check")
+        self.assertEqual(code, 1)
+        self.assertIn("other.md: cites superseded ADR docs/adr/0002-logging.md; cite docs/adr/0001-cancel.md instead", out)
+        self.assertNotIn("links to missing ADR", out)
+
+    def test_link_to_non_adr_file_in_adr_directory_is_not_a_citation(self) -> None:
+        self.stamp_clean()
+        self.repo.write("docs/requirements/glossary.md", "# Glossary\n\nSee the [ADR index](../adr/README.md).\n")
+        code, out = self.repo.run("check")
+        self.assertEqual(code, 0, out)
+
+    def test_pre_release_versions_compare_by_release_number(self) -> None:
+        self.stamp_clean()
+        self.set_lock_field("script_version", f"{PLUGIN_VERSION}-rc.1")
+        self.assertEqual(self.repo.run("check")[0], 0)
+        self.set_lock_field("script_version", "99.0.0-rc.1")
+        self.assertIn("written by adr_snapshot.py 99.0.0-rc.1", self.repo.run("check")[1])
+
     def test_init_refuses_to_overwrite(self) -> None:
         code, out = self.repo.run("init")
         self.assertEqual(code, 1)

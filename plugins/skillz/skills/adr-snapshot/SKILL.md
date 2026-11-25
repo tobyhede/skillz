@@ -21,7 +21,7 @@ A documentation rewrite does not authorize implementing defects, changing produc
 
 5. **Delete superseded ADRs.** Delete an ADR only when a later ADR replaces every decision in it. Partly superseded ADRs stay. Cite the replacement in the rules, delete the file, and record it with `stamp --supersede OLD NEW`. Delete superseded guides outright; git keeps them.
 
-6. **Stamp.** Run `python3 scripts/adr_snapshot.py stamp`, adding `--na PATH REASON` for each ADR no requirement needs to cite. It refuses to write the lock until every ADR is cited or has a reason, every requirements document links the lock, and every ADR link resolves. Fix what it reports and rerun.
+6. **Stamp.** Run `python3 scripts/adr_snapshot.py stamp`, adding `--na PATH REASON` for each ADR no requirement needs to cite. It refuses to write the lock until every ADR is cited or has a reason, every requirements document that cites an ADR links the lock, and every ADR link resolves. Fix what it reports and rerun.
 
 7. **Wire it in, once.** Add the check to CI and the reading-order line to the agent entry point, using the snippets in [Format](references/format.md). Skip whichever is already present.
 

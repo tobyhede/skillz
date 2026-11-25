@@ -4,7 +4,7 @@ Read this when writing requirements (step 3) and when wiring the check in (step 
 
 ## Requirements document
 
-Start each document with the contract line. It must link the lock file, or `check` fails:
+Start each document with the contract line. `check` fails a document that cites an ADR without linking the lock file:
 
 ```markdown
 # Batch operations
