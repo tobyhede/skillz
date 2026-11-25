@@ -125,7 +125,7 @@ class AdrSnapshotTest(unittest.TestCase):
         self.assertIn("only superseded ADRs may be deleted", out)
         code, out = self.repo.run("stamp")
         self.assertEqual(code, 1)
-        self.assertIn("deleted without --supersede", out)
+        self.assertIn("deleted without being recorded as superseded", out)
 
     def test_supersede_records_commit_and_passes(self) -> None:
         self.stamp_clean()
@@ -147,7 +147,7 @@ class AdrSnapshotTest(unittest.TestCase):
         (self.repo.root / "docs/adr/0009-never-committed.md").unlink()
         code, out = self.repo.run("stamp", "--supersede", "docs/adr/0009-never-committed.md", "docs/adr/0001-cancel.md")
         self.assertEqual(code, 1)
-        self.assertIn("not found at HEAD", out)
+        self.assertIn("not found in git history", out)
 
     def test_superseded_adr_restored_or_cited_fails(self) -> None:
         self.stamp_clean()
@@ -164,7 +164,7 @@ class AdrSnapshotTest(unittest.TestCase):
         (self.repo.root / "docs/adr/0002-logging.md").unlink()
         code, out = self.repo.run("stamp", "--supersede", "docs/adr/0002-logging.md", "docs/adr/0099-missing.md")
         self.assertEqual(code, 1)
-        self.assertIn("not a live locked ADR", out)
+        self.assertIn("not a live ADR", out)
 
     def test_link_to_missing_adr_fails(self) -> None:
         self.stamp_clean()
@@ -274,7 +274,7 @@ class AdrSnapshotTest(unittest.TestCase):
         self.assertEqual(superseded["docs/adr/0002-logging.md"]["commit"], first_commit)
         self.assertEqual(superseded["docs/adr/0001-cancel.md"]["by"], "docs/adr/0003-cancel-v2.md")
 
-    def test_link_to_superseded_adr_names_its_replacement(self) -> None:
+    def test_link_to_superseded_adr_is_pending_and_blocks_stamp(self) -> None:
         self.stamp_clean()
         (self.repo.root / "docs/adr/0002-logging.md").unlink()
         self.assertEqual(self.repo.run("stamp", "--supersede", "docs/adr/0002-logging.md", "docs/adr/0001-cancel.md")[0], 0)
@@ -282,10 +282,194 @@ class AdrSnapshotTest(unittest.TestCase):
             "docs/requirements/other.md",
             "# Other\n\n" + CONTRACT + "Rule. Sources: [ADR 0002](../adr/0002-logging.md).\n",
         )
+        message = "other.md: cites superseded ADR docs/adr/0002-logging.md; cite docs/adr/0001-cancel.md instead"
+        code, out = self.repo.run("check")
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"pending: docs/requirements/{message}", out)
+        self.assertNotIn("links to missing ADR", out)
+        self.assertEqual(self.repo.run("check", "--fail-stale")[0], 2)
+        code, out = self.repo.run("stamp")
+        self.assertEqual(code, 1)
+        self.assertIn(f"error: docs/requirements/{message}", out)
+
+    def supersede_cited_adr(self) -> None:
+        """Lock 0001 (cited) and 0002, add a pending 0003, then move 0001 out of the glob."""
+        self.stamp_clean()
+        self.repo.write("docs/adr/0003-cancel-v2.md", "# Cancel v2\n")
+        self.repo.write("docs/adr/0002-logging.md", "# Logging format, amended\n")
+        self.repo.commit()
+        self.repo.git("mv", "docs/adr/0001-cancel.md", "docs/adr/superseded-0001-cancel.md")
+
+    def test_supersede_records_only_the_supersession(self) -> None:
+        self.supersede_cited_adr()
+        before = self.repo.lock()
+        code, out = self.repo.run("supersede", "docs/adr/0001-cancel.md", "docs/adr/0003-cancel-v2.md")
+        self.assertEqual(code, 0, out)
+        lock = self.repo.lock()
+        self.assertEqual(lock["superseded"]["docs/adr/0001-cancel.md"]["by"], "docs/adr/0003-cancel-v2.md")
+        self.assertRegex(lock["superseded"]["docs/adr/0001-cancel.md"]["commit"], r"^[0-9a-f]{40}$")
+        self.assertEqual(lock["adrs"], {k: v for k, v in before["adrs"].items() if k != "docs/adr/0001-cancel.md"})
+        code, out = self.repo.run("check")
+        self.assertEqual(code, 0, out)
+        self.assertIn("pending: docs/adr/0003-cancel-v2.md is new", out)
+        self.assertIn("pending: docs/adr/0002-logging.md changed", out)
+        self.assertIn("pending: docs/requirements/batches.md: cites superseded ADR docs/adr/0001-cancel.md", out)
+
+    def test_supersede_finds_the_commit_before_a_committed_move(self) -> None:
+        self.supersede_cited_adr()
+        self.repo.commit()
+        code, out = self.repo.run("supersede", "docs/adr/0001-cancel.md", "docs/adr/0003-cancel-v2.md")
+        self.assertEqual(code, 0, out)
+        sha = self.repo.lock()["superseded"]["docs/adr/0001-cancel.md"]["commit"]
+        subprocess.run(["git", "-C", str(self.repo.root), "cat-file", "-e", f"{sha}:docs/adr/0001-cancel.md"], check=True)
+
+    def test_supersede_refuses_what_it_cannot_record(self) -> None:
+        self.supersede_cited_adr()
+        cases = [
+            (("docs/adr/0002-logging.md", "docs/adr/0003-cancel-v2.md"), "delete the file"),
+            (("docs/adr/0001-cancel.md", "docs/adr/0099-missing.md"), "not a live ADR"),
+            (("docs/adr/0042-never-locked.md", "docs/adr/0003-cancel-v2.md"), "not in the lock"),
+        ]
+        before = self.repo.lock()
+        for args, message in cases:
+            code, out = self.repo.run("supersede", *args)
+            self.assertEqual(code, 1, args)
+            self.assertIn(message, out)
+            self.assertEqual(self.repo.lock(), before)
+
+    def test_stamp_prints_what_it_records(self) -> None:
+        self.stamp_clean()
+        self.repo.write("docs/adr/0003-cancel-v2.md", "# Cancel v2\n")
+        code, out = self.repo.run("stamp", "--na", "docs/adr/0003-cancel-v2.md", "process")
+        self.assertEqual(code, 0, out)
+        self.assertIn("recorded: docs/adr/0003-cancel-v2.md", out)
+        self.assertNotIn("recorded: docs/adr/0001-cancel.md", out)
+
+    def test_leave_pending_keeps_an_adr_pending_through_a_stamp(self) -> None:
+        self.stamp_clean()
+        before = self.repo.lock()["adrs"]["docs/adr/0001-cancel.md"]
+        self.repo.write("docs/adr/0001-cancel.md", "# Cancel batches, amended\n")
+        self.repo.write("docs/adr/0003-cancel-v2.md", "# Cancel v2\n")
+        code, out = self.repo.run(
+            "stamp", "--leave-pending", "docs/adr/0001-cancel.md", "--leave-pending", "docs/adr/0003-cancel-v2.md",
+        )
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("recorded:", out)
+        lock = self.repo.lock()["adrs"]
+        self.assertEqual(lock["docs/adr/0001-cancel.md"], before)
+        self.assertNotIn("docs/adr/0003-cancel-v2.md", lock)
+        code, out = self.repo.run("check")
+        self.assertIn("pending: docs/adr/0001-cancel.md changed", out)
+        self.assertIn("pending: docs/adr/0003-cancel-v2.md is new", out)
+        code, out = self.repo.run("stamp", "--leave-pending", "docs/adr/0099-missing.md")
+        self.assertEqual(code, 1)
+        self.assertIn("--leave-pending names an ADR that is not in the tree", out)
+
+    def test_link_into_superseded_directory_is_pending_and_blocks_stamp(self) -> None:
+        (self.repo.root / adr_snapshot.DEFAULT_LOCK).unlink()
+        self.assertEqual(self.repo.run("init", "--superseded", "docs/adr/superseded/[0-9]*.md")[0], 0)
+        self.assertEqual(self.repo.lock()["superseded_glob"], "docs/adr/superseded/[0-9]*.md")
+        self.stamp_clean()
+        self.assertEqual(self.repo.lock()["superseded_glob"], "docs/adr/superseded/[0-9]*.md")
+        self.repo.write("docs/adr/superseded/0000-old.md", "# Old\n")
+        self.repo.write(
+            "docs/requirements/other.md",
+            "# Other\n\n" + CONTRACT + "Rule. Sources: [ADR 0000](../adr/superseded/0000-old.md), "
+            "[ADR 0004](../adr/superseded/0004-gone.md).\n",
+        )
         code, out = self.repo.run("check")
         self.assertEqual(code, 1)
-        self.assertIn("other.md: cites superseded ADR docs/adr/0002-logging.md; cite docs/adr/0001-cancel.md instead", out)
-        self.assertNotIn("links to missing ADR", out)
+        self.assertIn("other.md: links to missing ADR docs/adr/superseded/0004-gone.md", out)
+        self.assertIn("pending: docs/requirements/other.md: cites superseded ADR docs/adr/superseded/0000-old.md", out)
+        self.repo.write(
+            "docs/requirements/other.md",
+            "# Other\n\nRule. Sources: [ADR 0000](../adr/superseded/0000-old.md).\n",
+        )
+        code, out = self.repo.run("check")
+        self.assertEqual(code, 1)
+        self.assertIn("other.md: cites ADRs but does not link the lock file", out)
+        self.repo.write(
+            "docs/requirements/other.md",
+            "# Other\n\n" + CONTRACT + "Rule. Sources: [ADR 0000](../adr/superseded/0000-old.md).\n",
+        )
+        self.assertEqual(self.repo.run("check")[0], 0)
+        code, out = self.repo.run("stamp", "--na", "docs/adr/0002-logging.md", "engineering only")
+        self.assertEqual(code, 1)
+        self.assertIn("error: docs/requirements/other.md: cites superseded ADR", out)
+
+    def test_supersede_records_several_pairs_at_once(self) -> None:
+        self.supersede_cited_adr()
+        self.repo.write("docs/adr/0004-logging-v2.md", "# Logging v2\n")
+        self.repo.commit()
+        (self.repo.root / "docs/adr/0002-logging.md").unlink()
+        code, out = self.repo.run(
+            "supersede", "docs/adr/0001-cancel.md", "docs/adr/0003-cancel-v2.md",
+            "docs/adr/0002-logging.md", "docs/adr/0004-logging-v2.md",
+        )
+        self.assertEqual(code, 0, out)
+        self.assertEqual(sorted(self.repo.lock()["superseded"]), ["docs/adr/0001-cancel.md", "docs/adr/0002-logging.md"])
+        code, out = self.repo.run("supersede", "docs/adr/0001-cancel.md")
+        self.assertEqual(code, 1)
+        self.assertIn("OLD NEW pairs", out)
+
+    def test_stamp_records_a_chain_in_one_run(self) -> None:
+        self.stamp_clean()
+        self.repo.write("docs/adr/0003-cancel-v2.md", "# Cancel v2\n")
+        self.repo.write(
+            "docs/requirements/batches.md",
+            "# Batches\n\n" + CONTRACT + "Rule. Sources: [ADR 0003](../adr/0003-cancel-v2.md).\n",
+        )
+        (self.repo.root / "docs/adr/0001-cancel.md").unlink()
+        (self.repo.root / "docs/adr/0002-logging.md").unlink()
+        code, out = self.repo.run(
+            "stamp", "--supersede", "docs/adr/0002-logging.md", "docs/adr/0001-cancel.md",
+            "--supersede", "docs/adr/0001-cancel.md", "docs/adr/0003-cancel-v2.md",
+            "--na", "docs/adr/0003-cancel-v2.md", "unused",
+        )
+        self.assertEqual(code, 0, out)
+        superseded = self.repo.lock()["superseded"]
+        self.assertEqual(superseded["docs/adr/0002-logging.md"]["by"], "docs/adr/0003-cancel-v2.md")
+        self.assertEqual(superseded["docs/adr/0001-cancel.md"]["by"], "docs/adr/0003-cancel-v2.md")
+
+    def test_pending_proposed_adr_binds_nothing(self) -> None:
+        self.stamp_clean()
+        self.repo.write("docs/adr/0003-draft.md", "# Draft\n\nStatus: proposed\n")
+        self.repo.write("docs/adr/0004-taken.md", "# Taken\n\nStatus: accepted\n")
+        code, out = self.repo.run("check")
+        self.assertIn("pending: docs/adr/0003-draft.md is new since the last stamp; its Status is not accepted, so it binds nothing", out)
+        self.assertIn("pending: docs/adr/0004-taken.md is new since the last stamp; it binds where it differs", out)
+
+    def test_reference_links_count_and_code_does_not(self) -> None:
+        self.stamp_clean()
+        self.repo.write(
+            "docs/requirements/batches.md",
+            "# Batches\n\n" + CONTRACT + "Rule. Sources: [ADR 0001][a].\n\n[a]: ../adr/0001-cancel.md\n",
+        )
+        self.assertEqual(self.repo.run("check")[0], 0)
+        self.repo.write(
+            "docs/requirements/batches.md",
+            "# Batches\n\n" + CONTRACT + "Example: `[ADR 0001](../adr/0001-cancel.md)`\n\n"
+            "```md\n[ADR 0001](../adr/0001-cancel.md)\n```\n",
+        )
+        code, out = self.repo.run("check")
+        self.assertEqual(code, 1)
+        self.assertIn("0001-cancel.md: cited by no requirements document", out)
+
+    def test_non_string_script_version_is_an_error_not_a_traceback(self) -> None:
+        self.stamp_clean()
+        self.set_lock_field("script_version", 0.5)
+        code, out = self.repo.run("check")
+        self.assertEqual(code, 1)
+        self.assertIn("unrecognised script_version", out)
+
+    def test_stamp_restores_the_lock_when_check_raises(self) -> None:
+        self.stamp_clean()
+        before = (self.repo.root / adr_snapshot.DEFAULT_LOCK).read_text(encoding="utf-8")
+        self.repo.write("docs/adr/0003-new.md", "# New\n")
+        (self.repo.root / "docs/requirements/broken.md").write_bytes(b"\xff\xfe not utf-8")
+        with self.assertRaises(UnicodeDecodeError):
+            self.repo.run("stamp", "--na", "docs/adr/0003-new.md", "x")
+        self.assertEqual((self.repo.root / adr_snapshot.DEFAULT_LOCK).read_text(encoding="utf-8"), before)
 
     def test_link_to_non_adr_file_in_adr_directory_is_not_a_citation(self) -> None:
         self.stamp_clean()

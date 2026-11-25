@@ -61,4 +61,4 @@ Add a step to an existing workflow that runs on pull requests, or create one:
   run: python3 scripts/adr_snapshot.py check --github
 ```
 
-Pending ADRs appear as warnings and do not fail the build. Add `--fail-stale` only if the repository wants every ADR folded into the requirements before merge.
+Pending ADRs, and requirements still citing a superseded ADR, appear as warnings and do not fail the build. A pull request that deletes or moves a locked ADR runs `python3 scripts/adr_snapshot.py supersede OLD NEW` in the same change, or `check` fails. Add `--fail-stale` only if the repository wants every ADR folded into the requirements before merge.
