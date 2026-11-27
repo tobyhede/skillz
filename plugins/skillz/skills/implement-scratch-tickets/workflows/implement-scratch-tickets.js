@@ -42,12 +42,15 @@ if (!A.feature) {
 // Ticket ids are the files' NN prefixes. A bare number becomes two digits, so 3, "3" and "03" are one ticket.
 const tid = x => {
   const s = String(x).trim()
-  return /^\d+$/.test(s) ? s.padStart(2, '0') : s
+  return /^\d+$/.test(s) ? String(Number(s)).padStart(2, '0') : s
 }
 const WANTED = (A.tickets || []).map(tid)
 const MAX_FIX_ROUNDS = A.maxFixRounds ?? 2
 const WAIT_ROUNDS = A.waitRounds ?? 3
-const FEATURE_DIR = /[\/\\]/.test(String(A.feature)) ? String(A.feature) : `.scratch/${A.feature}`
+const FEATURE_ARG = String(A.feature).trim().replace(/[\/\\]+$/, '')
+const FEATURE_DIR = /[\/\\]/.test(FEATURE_ARG) ? FEATURE_ARG : `.scratch/${FEATURE_ARG}`
+// A ticket with one of these statuses is closed, whatever the plan says.
+const CLOSED = ['done', 'resolved', 'closed', 'wontfix']
 
 // At most 4 agents run at once, whatever the host allows.
 const MAX_PARALLEL = 4
@@ -340,6 +343,8 @@ note(null, 'plan', 'deviation', plan.deviations)
 for (const t of plan.tickets) {
   t.id = tid(t.id)
   t.blockedBy = (t.blockedBy || []).map(tid)
+  t.status = String(t.status || '').trim().toLowerCase()
+  if (CLOSED.includes(t.status)) t.state = 'closed'
 }
 for (const b of plan.blockerStates) b.id = tid(b.id)
 
@@ -365,7 +370,10 @@ for (const id of WANTED) {
   }
 }
 const inScope = plan.tickets.filter(t => {
-  if (explicit && !WANTED.includes(t.id)) return false
+  if (explicit && !WANTED.includes(t.id)) {
+    note(t.id, 'plan', 'decision', [`Skipped ticket ${t.id} because args.tickets does not list it.`])
+    return false
+  }
   const ok = t.state === 'open' && (explicit || t.status === 'ready-for-agent')
   if (!ok) {
     const why = t.state !== 'open'
@@ -378,6 +386,13 @@ const inScope = plan.tickets.filter(t => {
 })
 const byId = Object.fromEntries(inScope.map(t => [t.id, t]))
 const blockerState = Object.fromEntries(plan.blockerStates.map(b => [b.id, b]))
+// A blocker that is a ticket file this run skips takes its state from that file, so the plan need not
+// repeat it in blockerStates: closed means its work is done, open needs an open PR to build on.
+for (const t of plan.tickets) {
+  if (byId[t.id] || blockerState[t.id]) continue
+  const pr = t.openPr && !t.openPr.merged ? t.openPr : null
+  blockerState[t.id] = { id: t.id, state: t.state, ...(pr && pr.branch ? { openPrBranch: pr.branch } : {}) }
+}
 
 // Refuse a cycle before any work starts.
 const seen = {}
@@ -399,7 +414,7 @@ if (A.planOnly || !inScope.length) {
 const SPEC_TEXT = plan.spec && plan.spec.text
   ? `Spec (\`${plan.spec.path}\`), verbatim:\n<<<spec\n${plan.spec.text}\nspec>>>`
   : 'This feature has no spec.md; the ticket alone defines the work.'
-const ticketText = t => `Ticket ${t.id} (\`${t.path}\`${plan.featureDirAbs ? `, also readable at \`${plan.featureDirAbs}/${t.path.split('/').pop()}\`` : ''}), verbatim:
+const ticketText = t => `Ticket ${t.id} (\`${t.path}\`${plan.featureDirAbs ? `, also readable at \`${plan.featureDirAbs}/issues/${t.path.split('/').pop()}\`` : ''}), verbatim:
 <<<ticket
 ${t.text}
 ticket>>>`
@@ -645,6 +660,7 @@ ${ticketText(t)}`, {
       for (let w = 1; w <= WAIT_ROUNDS; w++) {
         const got = await run(USE_ROUTINE ? `Check pull request #${pr.number} of ${REPO} for the Claude review routine's review and CI.
 ${CHAIN_RULE}
+${SCRATCH_RULE(DIR)}
 
 Do not change anything except as step 1 says.
 1. If no review from \`cipherstash-agent\` is requested or submitted for head ${head}, and no comment whose
@@ -656,6 +672,7 @@ Do not change anything except as step 1 says.
 3. Return the current head, whether that review landed (and its URL), CI's state and the failing checks.`
           : `Check CI on pull request #${pr.number} of ${REPO}. Do not change anything, and do not request a review.
 ${CHAIN_RULE}
+${SCRATCH_RULE(DIR)}
 
 1. Wait up to 15 minutes for the check runs on the PR's current head to finish. Use the Monitor tool with an
    until-loop if you have one. Otherwise check with Bash, \`sleep 120\` between checks. If waiting is

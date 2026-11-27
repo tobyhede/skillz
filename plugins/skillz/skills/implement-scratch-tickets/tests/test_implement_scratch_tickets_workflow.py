@@ -110,12 +110,12 @@ def plan(tickets, blocker_states=(), review_routine=True):
     }
 
 
-def run(ticket_list, blocker_states=(), overrides=None, review_routine=True, **extra_args):
+def run(ticket_list, blocker_states=(), overrides=None, review_routine=True, plan_extra=None, **extra_args):
     body = SCRIPT.read_text().replace("export const meta", "const meta", 1)
     source = HARNESS.replace("/*SCRIPT*/", body)
     scenario = {
         "args": {"feature": "feat", **extra_args},
-        "plan": plan(ticket_list, blocker_states, review_routine),
+        "plan": {**plan(ticket_list, blocker_states, review_routine), **(plan_extra or {})},
         "overrides": overrides or {},
     }
     result = subprocess.run(
@@ -505,15 +505,13 @@ class ScratchTicketsTest(unittest.TestCase):
         })
         for label in ("build 02", "pr 02", "review 02", "fix 02 r1", "audit 02 r1"):
             self.assertIn("- [ ] criterion 2", prompt(r, label), label)
-            self.assertIn("/work/r/.scratch/feat/02-t2.md", prompt(r, label), label)
+            self.assertIn("/work/r/.scratch/feat/issues/02-t2.md", prompt(r, label), label)
         for label in ("build 02", "review 02"):
             self.assertIn("The spec body.", prompt(r, label), label)
 
     def test_no_agent_may_write_the_ticket_files(self):
         r = run([ticket(2), ticket(3, [2])])
         for c in r["calls"]:
-            if c["label"].startswith("wait"):
-                continue
             text = " ".join(c["prompt"].split())
             self.assertIn("Never add, change, move or delete anything under it", text, c["label"])
         self.assertIn("nothing under `.scratch/feat` is staged", " ".join(prompt(r, "build 02").split()))
@@ -552,6 +550,72 @@ class ScratchTicketsTest(unittest.TestCase):
         r = run([ticket(2)])
         self.assertIn(".scratch/feat/issues/02-t2.md", prompt(r, "run report"))
         self.assertEqual(r["out"]["featureDir"], ".scratch/feat")
+
+    def test_a_skipped_ticket_file_is_a_blocker_without_repeating_it_in_blocker_states(self):
+        r = run([ticket(2, status="done", state="open"), ticket(3, [2])])
+        self.assertEqual(labels(r, "build"), ["build 03"])
+        self.assertEqual(by_ticket(r)[3]["base"], "main")
+        r = run([ticket(2, status="needs-info"), ticket(3, [2])])
+        self.assertEqual(by_ticket(r)[3]["status"], "not built")
+        open_pr = {"number": 7, "url": "u", "branch": "feat/2-old", "merged": False}
+        r = run([ticket(2, status="needs-info", open_pr=open_pr), ticket(3, [2])])
+        self.assertEqual(by_ticket(r)[3]["base"], "feat/2-old")
+
+    def test_a_closed_status_closes_the_ticket_even_when_listed(self):
+        r = run([ticket(2, status="Resolved", state="open"), ticket(3)], tickets=[2, 3])
+        self.assertEqual(labels(r, "build"), ["build 03"])
+
+    def test_an_open_pr_is_continued_and_a_merged_one_is_not(self):
+        open_pr = {"number": 7, "url": "u", "branch": "feat/2-old", "merged": False}
+        r = run([ticket(2, open_pr=open_pr)])
+        self.assertIn("check out the existing PR branch `feat/2-old`", prompt(r, "build 02"))
+        self.assertIn("PR #7 is already open for it", prompt(r, "pr 02"))
+        r = run([ticket(2, open_pr={**open_pr, "merged": True})])
+        self.assertNotIn("feat/2-old", prompt(r, "build 02"))
+        self.assertNotIn("PR #7", prompt(r, "pr 02"))
+
+    def test_the_chain_syncs_bottom_up(self):
+        r = run([ticket(4, [3]), ticket(3, [2]), ticket(2)])
+        text = prompt(r, "sync chain")
+        edges = json.loads(text[text.index("["):text.index("]") + 1])
+        self.assertEqual([e["ticket"] for e in edges], ["02", "03", "04"])
+
+    def test_blocker_state_ids_are_normalised(self):
+        r = run([ticket(2, [9])], [{"id": "9", "state": "open", "openPrBranch": "feat/9"}])
+        self.assertEqual(by_ticket(r)[2]["base"], "feat/9")
+
+    def test_a_closed_blocker_outside_the_run_builds_on_the_base(self):
+        r = run([ticket(3, [2])], [{"id": "02", "state": "closed"}])
+        self.assertEqual(by_ticket(r)[3]["base"], "main")
+        self.assertEqual(by_ticket(r)[3]["status"], "clean")
+
+    def test_no_spec_and_no_absolute_directory(self):
+        r = run([ticket(2)], plan_extra={"spec": None, "featureDirAbs": None})
+        for label in ("build 02", "review 02"):
+            self.assertIn("has no spec.md", prompt(r, label), label)
+        for c in r["calls"]:
+            self.assertNotIn("undefined", c["prompt"], c["label"])
+            self.assertNotIn("also readable at", c["prompt"], c["label"])
+        self.assertIsNone(r["out"]["spec"])
+
+    def test_a_blocked_build_stops_its_dependents(self):
+        blocked = {"status": "blocked", "blocker": "no db", "branch": "feat/2", "base": "main",
+                   "criteria": [], "checks": [], "decisions": [], "deviations": []}
+        r = run([ticket(2), ticket(3, [2])], overrides={"build 02": blocked})
+        self.assertEqual({2: "not built", 3: "not built"}, {n: t["status"] for n, t in by_ticket(r).items()})
+        self.assertTrue(any("Blocked: no db" in e["text"] for e in r["out"]["ledger"]))
+
+    def test_tid_trims_and_drops_extra_zeros_and_a_trailing_slash(self):
+        t3 = ticket(3)
+        t3["id"] = " 003 "
+        r = run([t3], tickets=["3"], feature="feat/")
+        self.assertEqual(labels(r, "build"), ["build 03"])
+        self.assertIn("`.scratch/feat`", prompt(r, "plan"))
+
+    def test_tickets_left_out_of_an_explicit_list_get_a_reason(self):
+        r = run([ticket(2), ticket(3)], tickets=[2])
+        texts = [e["text"] for e in r["out"]["ledger"]]
+        self.assertIn("Skipped ticket 03 because args.tickets does not list it.", texts)
 
 
 class ImplementScratchTicketsReadmeTest(unittest.TestCase):
