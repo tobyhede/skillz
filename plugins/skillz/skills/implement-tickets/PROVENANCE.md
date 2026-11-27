@@ -20,7 +20,18 @@ This skill is third-party work, copied into skillz with its upstream license and
   - Every agent's rules forbid writing, staging or committing anything under the feature directory.
   - The PR body has a `Ticket: <path>` line instead of `Closes #<n>`, and the Plan agent finds an existing PR by that line.
   
-  In both modes, a blocker that is a ticket the run skips takes its state from the plan's ticket list when the plan leaves it out of `blockerStates`, so its dependents still build on a closed blocker. The result also says which tracker was used. GitHub-mode prompts are otherwise unchanged from upstream.
+  - A file's branch names its feature (`feat/<feature>-<NN>-<slug>`), since every feature numbers its files from `01`.
+  - Ids compare by number, so `Blocked by: 1` matches a file numbered `001`.
+
+  In both modes, fixes from review of this pull request:
+  - The routine is on only when `claude-review.yml` starts on a `cipherstash-agent` review request or comment, not whenever the file exists.
+  - The Chain step merges every blocker's branch again, not only the base, so fixes on a second blocker reach the tickets built on it.
+  - A ticket with more than one blocker is reviewed without the commits merged in from its other blockers.
+  - A blocker with an open PR is the base whatever its state, since a `Status:` line can say done before its PR merges.
+  - The build fetches an existing PR's branch before continuing it.
+  - A blocker that is a ticket the run skips takes its state from the plan's ticket list when the plan leaves it out of `blockerStates`.
+
+  The result also says which tracker was used. GitHub-mode prompts are otherwise unchanged from upstream.
 - `SKILL.md`: takes a spec issue number or a `.scratch` feature, and works out the tracker when given neither.
 - `tests/prompts.md`: the command is `/skillz:implement-tickets`, and it adds cases for ticket files.
 - `tests/test_implement_tickets_workflow.py`: moved from upstream's `scripts/tests/` into the skill, so the skillz CI runs it. It finds the skill and repository root from its own location, its README check ends at the ticket-files paragraph, and it checks that a spec number picks the GitHub tracker.

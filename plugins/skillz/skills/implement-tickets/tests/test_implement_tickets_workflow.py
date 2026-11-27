@@ -321,7 +321,8 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         wait = next(c for c in r["calls"] if c["label"] == "wait #2 r1.1")
         self.assertEqual(wait["model"], "haiku")
         self.assertIn("Check CI on pull request #", wait["prompt"])
-        for c in r["calls"]:
+        # The plan only checks what starts claude-review.yml; no agent after it requests a review.
+        for c in r["calls"][1:]:
             self.assertNotIn("cipherstash-agent", c["prompt"], c["label"])
         self.assertEqual(labels(r, "audit"), ["audit #2 r1"])
         # The audit neither polls CI nor waits for it.

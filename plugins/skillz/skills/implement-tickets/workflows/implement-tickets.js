@@ -53,18 +53,20 @@ if (!FILES && !A.spec && !(A.tickets && A.tickets.length)) {
   throw new Error('implement-tickets needs args.spec (spec issue number) or args.tickets (ticket numbers)')
 }
 
-// Ticket ids, as strings inside the script. An issue number is its digits. A file id is its NN prefix, and a
-// bare number becomes two digits, so 3, "3", "03" and "003" are one ticket.
+// Ticket ids, as strings inside the script, compared by number: 3, "3", "03" and "003" are one ticket, so
+// "Blocked by: 1" matches a file numbered 001. An issue number is its digits. A file id is its NN prefix.
 const norm = x => {
   const s = String(x).trim().replace(/^#/, '')
-  if (!/^\d+$/.test(s)) return s
-  return FILES ? String(Number(s)).padStart(2, '0') : String(Number(s))
+  return /^\d+$/.test(s) ? String(Number(s)) : s
 }
+// A file ticket is shown as its file writes its number ("03", "003"); FILE_ID fills in once the plan is read.
+const FILE_ID = {}
+const shown = id => FILE_ID[id] || (/^\d+$/.test(id) ? id.padStart(2, '0') : id)
 // Ids leave the script as the tracker writes them: issue numbers as numbers, file ids as "NN".
-const out = id => (id == null ? id : FILES ? id : Number(id))
+const out = id => (id == null ? id : FILES ? shown(id) : Number(id))
 // A ticket's name in labels and notes: "#12" for an issue, "03" for a file.
-const R = id => (FILES ? id : '#' + id)
-const T = id => (FILES ? `ticket ${id}` : '#' + id)
+const R = id => (FILES ? shown(id) : '#' + id)
+const T = id => (FILES ? `ticket ${shown(id)}` : '#' + id)
 
 const WANTED = (A.tickets || []).map(norm)
 const MAX_FIX_ROUNDS = A.maxFixRounds ?? 2
@@ -374,8 +376,11 @@ ${WANTED.length ? `Build exactly these tickets: ${WANTED.map(n => '#' + n).join(
 4. List the checks a change in this repository must pass, as exact commands, from AGENTS.md,
    CONTRIBUTING.md, CI workflows and the spec.
 5. Record the default branch.
-6. Set reviewRoutine to whether \`.github/workflows/claude-review.yml\` exists on the default branch of the
-   repository (the Claude review routine).
+6. Set reviewRoutine to whether the Claude review routine this run uses exists: true only when
+   \`.github/workflows/claude-review.yml\` exists on the default branch and starts on a review request for
+   \`cipherstash-agent\` or a comment whose first line starts "@cipherstash-agent review". A
+   claude-review.yml that starts some other way, for example on a different comment command, is false: say
+   what starts it in decisions.
 Return every ticket in scope, including ones that are closed or not labelled ready-for-agent, with their
 labels and state, so the run can report why it skipped them.`
 
@@ -384,7 +389,7 @@ no file edits, no git checkout, commit or push, and no GitHub writes.
 ${rules(FEATURE_DIR)}
 
 ${REPO_LINE}
-Feature directory: \`${FEATURE_DIR}\`, relative to the root of the current working directory's checkout.
+Feature directory: \`${FEATURE_DIR}\`, ${/^([\/\\]|[A-Za-z]:)/.test(FEATURE_DIR) ? 'an absolute path' : "relative to the root of the current working directory's checkout"}.
 ${WANTED.length ? `Build exactly these tickets: ${WANTED.join(', ')}.` : 'Build the open ticket files whose Status is ready-for-agent.'}
 
 1. Find the feature directory. If it does not exist, return no tickets and say so in deviations. Return its
@@ -409,8 +414,11 @@ ${WANTED.length ? `Build exactly these tickets: ${WANTED.join(', ')}.` : 'Build 
 5. List the checks a change in this repository must pass, as exact commands, from AGENTS.md,
    CONTRIBUTING.md, CI workflows and the spec.
 6. Record the default branch.
-7. Set reviewRoutine to whether \`.github/workflows/claude-review.yml\` exists on the default branch of the
-   repository (the Claude review routine).
+7. Set reviewRoutine to whether the Claude review routine this run uses exists: true only when
+   \`.github/workflows/claude-review.yml\` exists on the default branch and starts on a review request for
+   \`cipherstash-agent\` or a comment whose first line starts "@cipherstash-agent review". A
+   claude-review.yml that starts some other way, for example on a different comment command, is false: say
+   what starts it in decisions.
 Return every ticket file in the directory, including closed ones and ones not marked ready-for-agent, with
 their status and state, so the run can report why it skipped them.`
 
@@ -425,6 +433,10 @@ note(null, 'plan', 'deviation', plan.deviations)
 // One shape for a ticket from either tracker, with every id normalised.
 const tickets = plan.tickets.map(t => {
   const id = norm(FILES ? t.id : t.number)
+  if (FILES && !FILE_ID[id]) {
+    const m = String(t.path || '').split('/').pop().match(/^(\d+)-/)
+    FILE_ID[id] = m && norm(m[1]) === id ? m[1] : String(t.id).trim()
+  }
   const status = FILES ? String(t.status || '').trim().toLowerCase() : ''
   const state = FILES && CLOSED.includes(status) ? 'closed' : t.state
   return {
@@ -438,6 +450,7 @@ const tickets = plan.tickets.map(t => {
 const blockerStates = plan.blockerStates.map(b => ({ ...b, id: norm(FILES ? b.id : (b.number ?? b.id)) }))
 
 const DIR = FILES ? plan.featureDir || FEATURE_DIR : ''
+const FEATURE_SLUG = FILES ? DIR.split(/[\/\\]/).filter(Boolean).pop() : ''
 const RULES = rules(DIR)
 const BASE = A.base || plan.defaultBranch
 // Whether the repository has the Claude review routine. Without it, nothing requests a routine review
@@ -447,7 +460,7 @@ const USE_ROUTINE = A.routine ?? plan.reviewRoutine === true
 if (A.routine !== undefined) {
   note(null, 'plan', 'decision', [`Claude review routine ${USE_ROUTINE ? 'on' : 'off'}, as args.routine says.`])
 } else if (typeof plan.reviewRoutine === 'boolean') {
-  note(null, 'plan', 'decision', [`Claude review routine ${USE_ROUTINE ? 'on' : 'off'}: the plan found ${plan.reviewRoutine ? '' : 'no '}.github/workflows/claude-review.yml.`])
+  note(null, 'plan', 'decision', [`Claude review routine ${USE_ROUTINE ? 'on' : 'off'}: ${plan.reviewRoutine ? 'the plan found' : 'the plan found no'} .github/workflows/claude-review.yml started by a review request for cipherstash-agent.`])
 } else {
   note(null, 'plan', 'deviation', ['The plan did not report whether .github/workflows/claude-review.yml exists; Claude review routine off.'])
 }
@@ -456,7 +469,7 @@ const explicit = WANTED.length > 0
 if (FILES) {
   for (const id of WANTED) {
     if (!tickets.some(t => t.id === id)) {
-      note(id, 'plan', 'deviation', [`Ticket ${id} was asked for, but no ticket file in \`${DIR}/issues/\` has that number.`])
+      note(id, 'plan', 'deviation', [`Ticket ${shown(id)} was asked for, but no ticket file in \`${DIR}/issues/\` has that number.`])
     }
   }
 }
@@ -531,13 +544,14 @@ const finished = {} // ticket id -> Promise<result>
 function baseFor(t, blockerPrs) {
   // A ticket's branch is based on the branch of the ticket that blocks it. With two or more open blockers it
   // branches from the first and merges the others in. A blocker outside the run gives its open PR's
-  // branch as the base, or BASE once merged or closed.
+  // branch as the base, whatever its state (a Status: line can say done before its PR merges), or BASE
+  // once it has no open PR.
   const branches = []
   for (const b of t.blockedBy) {
     if (blockerPrs[b]) branches.push(blockerPrs[b].branch)
     else if (!byId[b]) {
       const s = blockerState[b]
-      if (s && s.state === 'open' && s.openPrBranch) branches.push(s.openPrBranch)
+      if (s && s.openPrBranch) branches.push(s.openPrBranch)
     }
   }
   return { base: branches[0] || BASE, mergeIn: branches.slice(1) }
@@ -557,7 +571,7 @@ function placeFor(t, blockerPrs, prBase) {
     if (blockerPrs[b]) cand = blockerPrs[b].place
     else if (!byId[b]) {
       const s = blockerState[b]
-      if (s && s.state === 'open' && s.openPrBranch) cand = { height: 0, anchor: s.openPrBranch }
+      if (s && s.openPrBranch) cand = { height: 0, anchor: s.openPrBranch }
     }
     if (cand && (!best || cand.height > best.height)) best = cand
   }
@@ -615,7 +629,9 @@ function openTicket(t) {
     const { base, mergeIn } = baseFor(t, blockerPrs)
     // A merged PR is history: a new PR continues the ticket.
     const openPr = t.openPr && !t.openPr.merged ? t.openPr : null
-    const branchExample = FILES ? `feat/${t.path.split('/').pop().replace(/\.md$/, '')}` : `feat/${t.id}-<slug>`
+    // Ticket files are numbered from 01 in every feature, so a file's branch names its feature too.
+    const branchExample = FILES ? `feat/${FEATURE_SLUG}-${t.path.split('/').pop().replace(/\.md$/, '')}` : `feat/${t.id}-<slug>`
+    const fetch = [base, ...mergeIn, ...(openPr && openPr.branch ? [openPr.branch] : [])]
 
     // Build: tdd in its own worktree.
     const build = await run(`Implement ticket ${R(t.id)} ("${t.title}") of ${REPO} with test-driven development.
@@ -624,9 +640,9 @@ ${RULES}
 ${ticketBrief(t)}
 Read the ticket and spec in full before you write code. Their acceptance criteria define done.
 
-Branch: you are in a fresh git worktree. Run \`git fetch origin ${base}${mergeIn.map(b => ' ' + b).join('')}\`, then create a
+Branch: you are in a fresh git worktree. Run \`git fetch origin ${fetch.join(' ')}\`, then create a
 branch for this ticket from \`origin/${base}\`${openPr ? `, or check out the existing PR branch \`${openPr.branch}\` and continue it` : ''}.
-Name it with a type prefix and the ticket ${FILES ? "file's name" : 'number'}, for example \`${branchExample}\`.
+Name it with a type prefix and the ticket ${FILES ? "feature and file's name" : 'number'}, for example \`${branchExample}\`.
 ${mergeIn.length ? `This ticket has more than one blocker: merge ${mergeIn.map(b => '`origin/' + b + '`').join(', ')} into your branch first (merge, never rebase).` : ''}
 
 How to work (this is the mattpocock-skills:implement procedure, which agents cannot invoke themselves):
@@ -679,7 +695,9 @@ Record whether the request went through.` : 'This repository has no Claude revie
     note(t.id, 'pr', 'decision', pr.decisions)
     note(t.id, 'pr', 'deviation', pr.deviations)
     log(`${T(t.id)}: PR #${pr.number} on ${pr.base}`)
-    return { branch: build.branch, base: build.base, place, build, pr }
+    // A continued PR branch on another base merges nothing in as planned.
+    const merged = build.base === base ? mergeIn : []
+    return { branch: build.branch, base: build.base, mergeIn: merged, place, build, pr }
   })()
   return opened[t.id]
 }
@@ -699,7 +717,11 @@ function finishTicket(t) {
     const review = await run(`Review pull request #${pr.number} of ${REPO} (ticket ${R(t.id)}) independently.
 ${RULES}
 
-You did not write this code. Review only this ticket's own commits: the diff \`origin/${pr.base}...origin/${o.branch}\` at
+You did not write this code. Review only this ticket's own commits: ${o.mergeIn.length ? `the branch also merges its other blockers'
+branches (${o.mergeIn.map(b => '`origin/' + b + '`').join(', ')}), whose commits are not this ticket's. List its own commits with
+\`git log --no-merges origin/${o.branch} --not origin/${pr.base} ${o.mergeIn.map(b => 'origin/' + b).join(' ')}\`, and review the
+diff from a local, unpushed merge of \`origin/${pr.base}\` and ${o.mergeIn.map(b => '`origin/' + b + '`').join(', ')} to \`origin/${o.branch}\`. Do not report
+findings in the blockers' code; it is reviewed on its own PR` : `the diff \`origin/${pr.base}...origin/${o.branch}\``} at
 head ${head}. Read-only: do not edit, commit, push, post to GitHub, or resolve threads.
 Use \`mattpocock-skills:code-review\` with the fixed point \`origin/${pr.base}\` and ${asSpec} as the
 spec. If \`mattpocock-skills:code-review\` cannot be loaded (the mattpocock-skills plugin is not installed),
@@ -854,7 +876,7 @@ Report CI's state on the head as "ci".${ticketTail(t)}`, {
       ticket: id, ...where,
       status: pending.length ? 'open findings' : !audited ? 'not audited' : ciOk ? 'clean' : `ci ${ci}`,
       ci,
-      pr: pr.url, branch: o.branch, base: o.base, place: o.place, head,
+      pr: pr.url, branch: o.branch, base: o.base, ...(o.mergeIn.length ? { mergeIn: o.mergeIn } : {}), place: o.place, head,
       criteriaOpen: build.criteria.filter(x => !x.met).map(x => x.criterion),
       openFindings: pending.map(f => ({ id: f.id, severity: f.severity, location: f.location, claim: f.claim })),
       rounds,
@@ -872,7 +894,7 @@ const results = await Promise.all(inScope.map(t => finishTicket(t).catch(e => {
 // Chain: fixes move up by merging each branch into every branch based on it.
 // One agent, in chain order, after every ticket run is done, so no two agents race.
 // ---------------------------------------------------------------------------
-const chained = results.filter(r => r.branch && r.base !== BASE)
+const chained = results.filter(r => r.branch && (r.base !== BASE || (r.mergeIn || []).length))
 let sync = null
 if (chained.length) {
   phase('Chain')
@@ -883,16 +905,18 @@ if (chained.length) {
   const edges = order
     .map(n => results.find(r => r.ticket === out(n)))
     .filter(r => r && r.branch)
-    .map(r => ({ ticket: r.ticket, branch: r.branch, base: r.base }))
+    .map(r => ({ ticket: r.ticket, branch: r.branch, base: r.base, ...(r.mergeIn ? { alsoMerge: r.mergeIn } : {}) }))
   sync = await run(`Merge fixes up the PR chain of ${REPO}, in this order. Each entry's \`base\` is the branch its PR targets: the branch of the ticket that blocks it.
+An entry's \`alsoMerge\` lists the branches of its other blockers, which were merged into it when it was built.
 ${RULES}
 
 ${JSON.stringify(edges, null, 2)}
 
-For each entry in order, where its base is not \`${BASE}\`: fetch both, merge \`origin/<base>\` into the branch
+For each entry in order: fetch the branch, its base and every \`alsoMerge\` branch. Where its base is not
+\`${BASE}\`, merge \`origin/<base>\` into the branch; then merge each \`origin/<alsoMerge>\` into it
 (merge, never rebase), keep both sides of any conflict and record it, rerun the checks
 (${plan.checks.map(c => '`' + c + '`').join('; ') || 'the repository checks'}), and push the branch. A branch already
-containing its base is "up to date". Do not touch \`${BASE}\`.`, {
+containing everything it merges is "up to date". Do not touch \`${BASE}\`.`, {
     label: 'sync chain', phase: 'Chain', model: OPUS, isolation: 'worktree', schema: SYNC_SCHEMA,
   })
   if (sync) {

@@ -329,7 +329,8 @@ class FilesWorkflowTest(unittest.TestCase):
         wait = next(c for c in r["calls"] if c["label"] == "wait 02 r1.1")
         self.assertEqual(wait["model"], "haiku")
         self.assertIn("Check CI on pull request #", wait["prompt"])
-        for c in r["calls"]:
+        # The plan only checks what starts claude-review.yml; no agent after it requests a review.
+        for c in r["calls"][1:]:
             self.assertNotIn("cipherstash-agent", c["prompt"], c["label"])
         self.assertEqual(labels(r, "audit"), ["audit 02 r1"])
         # The audit neither polls CI nor waits for it.
@@ -505,7 +506,7 @@ class ScratchTicketsTest(unittest.TestCase):
         self.assertNotIn("Closes #", text)
 
     def test_the_branch_is_named_after_the_ticket_file(self):
-        self.assertIn("`feat/02-t2`", prompt(run([ticket(2)]), "build 02"))
+        self.assertIn("`feat/feat-02-t2`", prompt(run([ticket(2)]), "build 02"))
 
     def test_ticket_ids_match_however_they_are_written(self):
         t3 = ticket(3, [2])
@@ -598,6 +599,55 @@ class ScratchTicketsTest(unittest.TestCase):
         r = run([ticket(2), ticket(3)], tickets=[2])
         texts = [e["text"] for e in r["out"]["ledger"]]
         self.assertIn("Skipped ticket 03 because args.tickets does not list it.", texts)
+
+    def test_the_routine_counts_only_when_claude_review_starts_on_a_cipherstash_agent_request(self):
+        text = " ".join(prompt(run([ticket(2)], planOnly=True), "plan").split())
+        self.assertIn("starts on a review request for `cipherstash-agent`", text)
+        self.assertIn("starts some other way, for example on a different comment command, is false", text)
+
+    def test_the_chain_sync_merges_every_blocker_branch_again(self):
+        r = run([ticket(2), ticket(3), ticket(4, [2, 3])])
+        text = prompt(r, "sync chain")
+        edges = json.loads(text[text.index("["):text.index("]\n\n") + 1])
+        four = next(e for e in edges if e["ticket"] == "04")
+        self.assertEqual((four["base"], four["alsoMerge"]), ("feat/2", ["feat/3"]))
+        self.assertIn("merge each `origin/<alsoMerge>`", " ".join(text.split()))
+        self.assertEqual(by_ticket(r)[4]["mergeIn"], ["feat/3"])
+
+    def test_a_merged_in_blocker_is_not_reviewed_as_this_tickets_code(self):
+        r = run([ticket(2), ticket(3), ticket(4, [2, 3])])
+        text = " ".join(prompt(r, "review 04").split())
+        self.assertIn("git log --no-merges origin/feat/4 --not origin/feat/2 origin/feat/3", text)
+        self.assertIn("Do not report findings in the blockers' code", text)
+        self.assertNotIn("git log --no-merges", prompt(r, "review 02"))
+
+    def test_a_blocker_marked_done_with_an_open_pr_is_still_the_base(self):
+        r = run([ticket(3, [2])], [{"id": "02", "state": "closed", "openPrBranch": "feat/2-x"}])
+        self.assertEqual(by_ticket(r)[3]["base"], "feat/2-x")
+        open_pr = {"number": 7, "url": "u", "branch": "feat/2-old", "merged": False}
+        r = run([ticket(2, status="done", open_pr=open_pr), ticket(3, [2])])
+        self.assertEqual(by_ticket(r)[3]["base"], "feat/2-old")
+        self.assertEqual(by_ticket(r)[3]["place"], {"height": 1, "anchor": "feat/2-old"})
+
+    def test_the_existing_pr_branch_is_fetched(self):
+        open_pr = {"number": 7, "url": "u", "branch": "feat/2-old", "merged": False}
+        self.assertIn("git fetch origin main feat/2-old", prompt(run([ticket(2, open_pr=open_pr)]), "build 02"))
+
+    def test_an_absolute_feature_directory_is_not_called_relative(self):
+        text = prompt(run([ticket(2)], planOnly=True, feature="/abs/tickets/feat"), "plan")
+        self.assertIn("`/abs/tickets/feat`, an absolute path", text)
+        self.assertNotIn("relative to the root", text.split("Feature directory:")[1].split("\n")[0])
+
+    def test_three_digit_file_numbers_match_unpadded_blockers(self):
+        a, b = ticket(1), ticket(2, [1])
+        a.update(id="001", path=".scratch/feat/issues/001-a.md")
+        b.update(id="002", path=".scratch/feat/issues/002-b.md", blockedBy=["1"])
+        r = run([a, b])
+        self.assertEqual(labels(r, "build"), ["build 001", "build 002"])
+        self.assertEqual(r["out"]["tickets"][1]["base"], "feat/1")
+
+    def test_branches_name_the_feature_so_features_do_not_clash(self):
+        self.assertIn("`feat/billing-02-t2`", prompt(run([ticket(2)], feature="billing", plan_extra={"featureDir": ".scratch/billing"}), "build 02"))
 
 
 class FilesReadmeTest(unittest.TestCase):
