@@ -8,13 +8,17 @@
 - `/skillz:implement-tickets 56 plan`: starts it with `{spec: 56, planOnly: true}` and returns the plan without building.
 - `/skillz:implement-tickets tickets 57,58 base feat/x rounds 3`: starts it with `{tickets: [57, 58], base: "feat/x", maxFixRounds: 3}`.
 - `/skillz:implement-tickets 56 routine off`: starts it with `{spec: 56, routine: false}`.
-- `/skillz:implement-tickets` with no arguments: asks for the spec issue number and starts nothing until it has one.
+- `/skillz:implement-tickets search-filters`: starts it with `{feature: "search-filters"}`, reading ticket files from `.scratch/search-filters/`.
+- `/skillz:implement-tickets .scratch/search-filters tickets 02,03 plan`: starts it with `{feature: ".scratch/search-filters", tickets: ["02", "03"], planOnly: true}`.
+- `/skillz:implement-tickets` with no arguments in a repository that uses GitHub issues: asks for the spec issue number and starts nothing until it has one.
+- `/skillz:implement-tickets` with no arguments in a repository whose `docs/agents/issue-tracker.md` names local markdown files, and with two feature directories under `.scratch/`: asks which feature to build. With exactly one, it uses that one and says so.
 
 ## Should not activate
 
 - "Implement the tickets for spec 56" with no command typed: the model never starts a multi-agent run on its own.
 - "Review PR 118": a review, not a build.
 - "Break spec 56 into tickets": filing tickets comes before this workflow.
+- "Build the tickets in .scratch/search-filters" with no command typed: the model never starts a run on its own, whichever tracker holds the tickets.
 
 ## Expected behavior
 
@@ -27,3 +31,6 @@
 - No agent in the run runs `gh stack` or follows stacking-pull-requests. `gh api repos/{owner}/{repo}/stacks` lists no stack for the run's PRs, and each PR's base is the branch of the ticket that blocks it.
 - Each PR body gives its place in the chain, counting from the bottom.
 - The session never merges a PR, marks one ready, or changes its tickets while the run is going.
+- With a feature, only ticket files whose `Status:` is `ready-for-agent` are built, unless `tickets` names them, and a ticket whose `Blocked by:` names another file branches from that ticket's branch.
+- With a feature, every build, PR, review, fix and audit agent gets the ticket's full text in its prompt, so a `.scratch/` directory that git ignores still reaches agents working in a fresh worktree.
+- With a feature, no commit in any PR adds, changes or deletes a file under the feature directory, and each PR body has a `Ticket: .scratch/<feature>/issues/<NN>-<slug>.md` line and no `Closes #` line. A second run updates the PR whose body names the ticket file instead of opening another.

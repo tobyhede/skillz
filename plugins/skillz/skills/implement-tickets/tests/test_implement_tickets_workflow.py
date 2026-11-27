@@ -345,6 +345,15 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         self.assertIn("Check CI's state on the PR's current head once",
                       " ".join(prompt(r, "audit #2 r1").split()))
 
+    def test_a_spec_number_picks_the_github_tracker(self):
+        r = run([ticket(2)])
+        self.assertEqual(r["out"]["tracker"], "github")
+        self.assertIn("GitHub's native issue dependencies", prompt(r, "plan"))
+        for c in r["calls"]:
+            self.assertNotIn(".scratch", c["prompt"], c["label"])
+            self.assertNotIn("Ticket:", c["prompt"].replace("Ticket: #2", ""), c["label"])
+        self.assertIn("Closes #2", prompt(r, "pr #2"))
+
     def test_plan_looks_for_the_routine_workflow(self):
         r = run([ticket(2)])
         self.assertIn(".github/workflows/claude-review.yml", prompt(r, "plan"))
@@ -469,7 +478,7 @@ class ImplementTicketsReadmeTest(unittest.TestCase):
     def test_readme_dependency_list_matches_the_script(self):
         text = (ROOT / "README.md").read_text()
         start = text.index("`implement-tickets` runs a Claude Code workflow script")
-        section = " ".join(text[start:text.index("`implement-scratch-tickets` is the same workflow", start)].split())
+        section = " ".join(text[start:text.index("With a `.scratch/` feature", start)].split())
         # Neither dependency is required: each has a fallback the script names.
         self.assertIn("`mattpocock-skills`", section)
         self.assertIn("follow its steps themselves", section)

@@ -1,4 +1,4 @@
-"""Tests for the implement-scratch-tickets skill's workflows/implement-scratch-tickets.js.
+"""Tests for the implement-tickets workflow with tickets in .scratch/ markdown files (tracker "files").
 
 The workflow is a Claude Code Workflow script. These tests run it under Node with a stub
 agent() that returns canned results per agent label, and assert on the agents it starts and
@@ -14,7 +14,7 @@ from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 ROOT = SKILL_DIR.parents[3]
-SCRIPT = SKILL_DIR / "workflows" / "implement-scratch-tickets.js"
+SCRIPT = SKILL_DIR / "workflows" / "implement-tickets.js"
 NODE = shutil.which("node")
 
 # The stub runtime. SCENARIO is a JSON object:
@@ -140,7 +140,7 @@ def by_ticket(result):
 
 
 @unittest.skipUnless(NODE or os.environ.get("CI"), "node is not installed")
-class ImplementTicketsWorkflowTest(unittest.TestCase):
+class FilesWorkflowTest(unittest.TestCase):
     def setUp(self):
         if not NODE:
             self.fail("node is required in CI to test the implement-tickets workflow")
@@ -449,30 +449,6 @@ class ImplementTicketsWorkflowTest(unittest.TestCase):
         self.assertEqual(labels(r, "run"), ["run report"])
 
 
-class ImplementTicketsSkillTest(unittest.TestCase):
-    SKILL = SKILL_DIR / "SKILL.md"
-
-    def test_only_a_person_can_start_the_skill(self):
-        text = self.SKILL.read_text()
-        front = text.split("---")[1]
-        self.assertIn("name: implement-scratch-tickets", front)
-        self.assertIn("disable-model-invocation: true", front)
-
-    def test_skill_resolves_the_script_from_its_own_directory(self):
-        text = self.SKILL.read_text()
-        self.assertIn("${CLAUDE_SKILL_DIR}/workflows/implement-scratch-tickets.js", text)
-        self.assertNotIn("git rev-parse", text)
-        self.assertNotIn(".claude/workflows", text)
-        self.assertTrue(SCRIPT.is_file())
-
-    def test_codex_never_selects_the_skill_implicitly(self):
-        # No YAML parser in the standard library, so require the exact shape: the key
-        # nested under policy:, set to false, with nothing commented out.
-        yaml = (SKILL_DIR / "agents" / "openai.yaml").read_text()
-        lines = [line.rstrip() for line in yaml.splitlines() if line.strip()]
-        self.assertEqual(lines, ["policy:", "  allow_implicit_invocation: false"])
-
-
 class ScratchTicketsTest(unittest.TestCase):
     """What differs from implement-tickets: tickets are files, not tracker issues."""
 
@@ -482,7 +458,7 @@ class ScratchTicketsTest(unittest.TestCase):
 
     def test_needs_a_feature(self):
         body = SCRIPT.read_text().replace("export const meta", "const meta", 1)
-        scenario = {"args": {"tickets": [2]}, "plan": plan([ticket(2)]), "overrides": {}}
+        scenario = {"args": {"tracker": "files", "tickets": [2]}, "plan": plan([ticket(2)]), "overrides": {}}
         result = subprocess.run(
             [NODE, "-"], input=HARNESS.replace("/*SCRIPT*/", body), capture_output=True, text=True,
             timeout=60, env={**os.environ, "SCENARIO": json.dumps(scenario)},
@@ -490,6 +466,12 @@ class ScratchTicketsTest(unittest.TestCase):
         out = json.loads(result.stdout)
         self.assertIn("args.feature", out["error"])
         self.assertEqual(out["calls"], [])
+
+    def test_a_feature_picks_the_files_tracker(self):
+        r = run([ticket(2)])
+        self.assertEqual(r["out"]["tracker"], "files")
+        self.assertIn("Read every ticket file under `issues/`", prompt(r, "plan"))
+        self.assertNotIn("GitHub's native issue dependencies", prompt(r, "plan"))
 
     def test_a_slug_names_a_directory_under_scratch_and_a_path_is_used_as_given(self):
         self.assertIn("`.scratch/feat`", prompt(run([ticket(2)], planOnly=True), "plan"))
@@ -618,10 +600,10 @@ class ScratchTicketsTest(unittest.TestCase):
         self.assertIn("Skipped ticket 03 because args.tickets does not list it.", texts)
 
 
-class ImplementScratchTicketsReadmeTest(unittest.TestCase):
-    def test_readme_describes_the_ticket_files_and_dependencies(self):
+class FilesReadmeTest(unittest.TestCase):
+    def test_readme_describes_the_ticket_files(self):
         text = (ROOT / "README.md").read_text()
-        start = text.index("`implement-scratch-tickets` is the same workflow")
+        start = text.index("With a `.scratch/` feature")
         section = " ".join(text[start:text.index("## Install", start)].split())
         self.assertIn("`.scratch/<feature>/issues/<NN>-<slug>.md`", section)
         self.assertIn("`Status: ready-for-agent`", section)
