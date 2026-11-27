@@ -31,7 +31,7 @@ Lock format (JSON, version 1):
 
   {
     "version": 1,
-    "script_version": "0.6.0",
+    "script_version": "0.7.0",
     "adr_glob": "docs/adr/[0-9]*.md",
     "requirements_glob": "docs/requirements/*.md",
     "superseded_glob": "optional, e.g. docs/adr/superseded/[0-9]*.md",
@@ -80,7 +80,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 LOCK_VERSION = 1
-SCRIPT_VERSION = "0.6.0"
+SCRIPT_VERSION = "0.7.0"
 DEFAULT_LOCK = "docs/requirements/snapshot.lock.json"
 DEFAULT_ADR_GLOB = "docs/adr/[0-9]*.md"
 DEFAULT_REQUIREMENTS_GLOB = "docs/requirements/*.md"
